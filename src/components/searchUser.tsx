@@ -13,6 +13,15 @@ export default function SearchUser() {
     const [error, setError] = useState<string | null>(null);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
+    // Define getCurrentUser with useCallback to avoid recreating
+    const getCurrentUser = useCallback(async () => {
+        const supabase = createClientComponentClient();
+        const { data: { user }, error } = await supabase.auth.getUser();
+
+        if (error) throw error;
+        return user;
+    }, []);
+
     // Get current user on mount
     useEffect(() => {
         async function fetchCurrentUser() {
@@ -24,50 +33,52 @@ export default function SearchUser() {
             }
         }
         fetchCurrentUser();
-    }, []);
-
-    const performSearch = useCallback(async (query: string) => {
-        if (query.trim().length === 0) {
-            setUsers([]);
-            setIsLoading(false);
-            return;
-        }
-
-        try {
-            setIsLoading(true);
-            const results = await Search(query, currentUserId || undefined);
-            setUsers(Array.isArray(results) ? results : []);
-        } catch (err) {
-            setError("Ошибка при поиске пользователей");
-            console.error("Search error:", err);
-            setUsers([]);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [currentUserId]);
+    }, [getCurrentUser]);
 
     // Debounce search with 500ms delay
     useEffect(() => {
-        const timeoutId = setTimeout(() => {
-            performSearch(searchQuery);
+        const timeoutId = setTimeout(async () => {
+            const trimmed = searchQuery.trim();
+
+            if (trimmed.length === 0) {
+                setUsers([]);
+                setIsLoading(false);
+                return;
+            }
+
+            // Don't search if less than 2 characters
+            if (trimmed.length < 2) {
+                setIsLoading(false);
+                return;
+            }
+
+            try {
+                setIsLoading(true);
+                const results = await Search(trimmed, currentUserId || undefined);
+                setUsers(Array.isArray(results) ? results : []);
+            } catch (err) {
+                setError("Ошибка при поиске пользователей");
+                console.error("Search error:", err);
+                setUsers([]);
+            } finally {
+                setIsLoading(false);
+            }
         }, 500);
 
         return () => clearTimeout(timeoutId);
-    }, [searchQuery, performSearch]);
+    }, [searchQuery, currentUserId]);
 
     function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
         const value = e.target.value;
         setSearchQuery(value);
         setError(null);
-        setIsLoading(true); // Show loading immediately when user types
-    }
 
-    async function getCurrentUser() {
-        const supabase = createClientComponentClient();
-        const { data: { user }, error } = await supabase.auth.getUser();
-
-        if (error) throw error;
-        return user;
+        // Only show loading if the value will trigger search
+        if (value.trim().length >= 2) {
+            setIsLoading(true);
+        } else {
+            setIsLoading(false);
+        }
     }
 
     async function handleCreateChat(selectedUser: SearchUserResult) {
