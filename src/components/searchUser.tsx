@@ -5,6 +5,7 @@ import Search from "@/components/search"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import NewChat from "./newchat";
 import type { SearchUserResult } from "@/types/user";
+import { debouncedAsync } from "@/lib/utils";
 
 export default function SearchUser() {
     const [searchQuery, setSearchQuery] = useState<string>("");
@@ -35,37 +36,41 @@ export default function SearchUser() {
         fetchCurrentUser();
     }, [getCurrentUser]);
 
-    // Debounce search with 500ms delay
+    // Debounce search with configurable delay
     useEffect(() => {
-        const timeoutId = setTimeout(async () => {
-            const trimmed = searchQuery.trim();
+        const trimmed = searchQuery.trim();
 
-            if (trimmed.length === 0) {
-                setUsers([]);
-                setIsLoading(false);
-                return;
-            }
+        // Clear users and reset loading if query is empty
+        if (trimmed.length === 0) {
+            setUsers([]);
+            setIsLoading(false);
+            return;
+        }
 
-            // Don't search if less than 2 characters
-            if (trimmed.length < 2) {
-                setIsLoading(false);
-                return;
-            }
+        // Don't search if less than 2 characters
+        if (trimmed.length < 2) {
+            setIsLoading(false);
+            return;
+        }
 
-            try {
-                setIsLoading(true);
+        const cleanup = debouncedAsync({
+            callback: async () => {
                 const results = await Search(trimmed, currentUserId || undefined);
-                setUsers(Array.isArray(results) ? results : []);
-            } catch (err) {
+                return Array.isArray(results) ? results : [];
+            },
+            delay: 500,
+            validate: () => trimmed.length >= 2,
+            onStart: () => setIsLoading(true),
+            onSuccess: (results) => setUsers(results),
+            onError: (err) => {
                 setError("Ошибка при поиске пользователей");
                 console.error("Search error:", err);
                 setUsers([]);
-            } finally {
-                setIsLoading(false);
-            }
-        }, 500);
+            },
+            onFinally: () => setIsLoading(false),
+        });
 
-        return () => clearTimeout(timeoutId);
+        return cleanup;
     }, [searchQuery, currentUserId]);
 
     function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -120,7 +125,6 @@ export default function SearchUser() {
                 type="text"
                 name="username"
                 onChange={handleSearchChange}
-                disabled={isLoading}
             />
 
             {error && <p className="text-red-500 text-sm mt-1">{error}</p>}

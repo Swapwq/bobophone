@@ -14,11 +14,29 @@ export default function FormLogin() {
     async function handleSubmit (e: React.FormEvent) {
         e.preventDefault();
 
-        const { data, error } = await supabase.auth.signUp({ email: `${username}`, password: `${password}` });
-        if (error) console.log(error);
-            else console.log('good');
+        // Use username as email for Supabase Auth (or convert to email format)
+        const email = username.includes('@') ? username : `${username}@app.local`;
 
-        SentFormData(username, password);
+        const { data, error } = await supabase.auth.signUp({
+            email: email,
+            password: password
+        });
+
+        if (error) {
+            console.error('[FormLogin] Supabase signup error:', error);
+            return;
+        }
+
+        if (!data.user) {
+            console.error('[FormLogin] No user data returned from signup');
+            return;
+        }
+
+        console.log('[FormLogin] Supabase signup successful. User ID:', data.user.id);
+
+        // Save user data to public_users table with the auth user ID
+        const result = await SentFormData(email, password, username, data.user.id);
+        console.log('[FormLogin] SentFormData result:', result);
     };
 
     return(
