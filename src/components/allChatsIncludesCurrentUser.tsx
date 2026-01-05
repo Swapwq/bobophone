@@ -15,11 +15,19 @@ type ChatMessage = {
   created_at: Date;
 };
 
+type MessageWithSender = {
+  id: string;
+  sender_id: string;
+  sender_username: string | null;
+  content: string | null;
+  created_at: Date;
+};
+
 
 export default function AllChatsIncludesCurrentUser({ currentUserId }: { currentUserId: string }) {
   const [usernames, setUsernames] = useState<{ user_id: string; chat_id: string; username: string }[]>([]);
    const [loadingMessages, setLoadingMessages] = useState(false);
-   const [messages, setMessages] = useState<{ sender_id: string; content: string; created_at: Date }[]>([]);
+   const [messages, setMessages] = useState<{ sender_id: string; content: string; created_at: Date; sender_username: string }[]>([]);
    const [message, setMessage] = useState("");
    const [sending, setSending] = useState(false);
    const [selectedChatId, setSelectedChatId] = useState('');
@@ -66,6 +74,7 @@ export default function AllChatsIncludesCurrentUser({ currentUserId }: { current
             sender_id: string;
             content: string;
             created_at: string;
+            sender_username: string;
         } = await res.json();
 
 
@@ -75,6 +84,7 @@ export default function AllChatsIncludesCurrentUser({ currentUserId }: { current
                 sender_id: rawMessage.sender_id,
                 content: rawMessage.content,
                 created_at: new Date(rawMessage.created_at),
+                sender_username: rawMessage.sender_username,
             },
         ]);
 
@@ -85,6 +95,7 @@ export default function AllChatsIncludesCurrentUser({ currentUserId }: { current
   }
 
   if (!usernames.length) return <p>Loading chats...</p>;
+  const currentChatUsername = usernames.find(u => u.chat_id === selectedChatId)?.username;
 
   return (
     <>
@@ -97,7 +108,7 @@ export default function AllChatsIncludesCurrentUser({ currentUserId }: { current
 
             <div className="h-screen flex-1">
                 <div className="fixed flex items-center top-0 left-[300px] h-[40px] right-0 px-4 text-[15px] border-b-2 border-[#4D4D4D] bg-[#212121]">
-                  <p>{selectedChatId}</p>
+                  <p>{currentChatUsername}</p>
                 </div>
                 <ChatMessages messages={messages}/>
             </div>

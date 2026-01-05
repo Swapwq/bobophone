@@ -120,9 +120,9 @@ export default function SearchUser({searchQuery,
     }
 
     return (
-        <div className="max-w-[300px] max-h-[40px]">
+        <div className="max-w-[300px] h-[40px]">
             <input
-                className="flex-1 px-3 outline-none leading-[30px] overflow-hidden w-[290px] h-[28px] my-[6px] mx-[5px] text-[15px] bg-[#2E2E2E] rounded-full"
+                className="flex-1 px-3 outline-none leading-[30px] overflow-hidden w-[290px] h-[28px] my-[6px] mx-[5px] text-[15px] bg-[#2E2E2E] rounded-full "
                 placeholder="Поиск"
                 value={searchQuery}
                 type="text"

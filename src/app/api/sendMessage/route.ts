@@ -26,7 +26,12 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json(message, { status: 201 });
+    const sender = await prisma.public_users.findUnique({
+      where: { id: sender_id },
+      select: { username: true }
+    });
+
+    return NextResponse.json({...message, sender_username: sender?.username || null}, { status: 201 });
   } catch (error) {
     console.error("POST /api/chatsMessage error:", error);
     return NextResponse.json(

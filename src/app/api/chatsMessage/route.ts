@@ -11,17 +11,27 @@ export async function GET(req: Request) {
             chat_id: chatId
         },
         select: {
-            sender_id: true,
-            content: true,
-            created_at: true
+        id: true,
+          sender_id: true,
+          content: true,
+          created_at: true
         }
+          
     });
 
-    const result = messages.map(m => ({
-        sender_id: m.sender_id,
-        content: m.content,
-        created_at: m.created_at
-    }));
+        const messagesArray = Array.isArray(messages) ? messages : [messages];
+        const senderIds = messages
+            .map(m => m.sender_id)
+            .filter((id): id is string => !!id && id !== null && id !== undefined);
+    
+        const senders = await prisma.public_users.findMany({
+          where: { id: { in: senderIds }},
+          select: {id: true, username: true}
+        })
+    
+        const result = messagesArray.map(msg => ({
+          ...msg, sender_username: senders.find(s => s.id === msg.sender_id)?.username || null
+        }));
 
     return NextResponse.json(result);
 }
