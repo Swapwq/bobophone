@@ -7,8 +7,11 @@ import NewChat from "./newchat";
 import type { SearchUserResult } from "@/types/user";
 import { debouncedAsync } from "@/lib/utils";
 
-export default function SearchUser() {
-    const [searchQuery, setSearchQuery] = useState<string>("");
+export default function SearchUser({searchQuery,
+  setSearchQuery,
+}: {
+  searchQuery: string;
+  setSearchQuery: (v: string) => void;}) {
     const [users, setUsers] = useState<SearchUserResult[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
@@ -117,10 +120,10 @@ export default function SearchUser() {
     }
 
     return (
-        <div className="max-w-[250px]">
+        <div className="max-w-[300px] max-h-[40px]">
             <input
-                className="w-[250px]"
-                placeholder="Username"
+                className="flex-1 px-3 outline-none leading-[30px] overflow-hidden w-[290px] h-[28px] my-[6px] mx-[5px] text-[15px] bg-[#2E2E2E] rounded-full"
+                placeholder="Поиск"
                 value={searchQuery}
                 type="text"
                 name="username"
@@ -134,7 +137,7 @@ export default function SearchUser() {
             {!isLoading && users.length > 0 && users.map((user) => (
                 <button
                     key={user.id}
-                    className='flex justify-start w-[250px]'
+                    className='flex items-center bg-[#303030] w-[300px] h-[45px] pl-[15px] hover:bg-[#3D3D3D] transition duration-200 cursor-pointer'
                     onClick={() => handleCreateChat(user)}
                 >
                     <p>{user.username || user.email}</p>
