@@ -102,7 +102,7 @@ export default function AllChatsIncludesCurrentUser({ currentUserId }: { current
         <div className="flex justify-start">
             <div className="h-screen border-r-2 border-[#4D4D4D]">
                 <ul>
-                    {usernames.map((u, i) => <button key={u.chat_id} className="flex items-center bg-[#303030] w-[300px] h-[45px] pl-[15px] hover:bg-[#3D3D3D] transition duration-200 cursor-pointer" onClick={() => {setSelectedChatId(u.chat_id); loadMessages(u.chat_id)}} disabled={loadingMessages}>{u.username}</button>)}
+                    {usernames.map((u, i) => <button key={u.chat_id} className={`flex items-center ${(selectedChatId === u.chat_id) ? 'bg-[#3D3D3D]' : 'bg-[#303030]'} w-[300px] h-[45px] pl-[15px] hover:bg-[#3D3D3D] transition duration-200 cursor-pointer`} onClick={() => {setSelectedChatId(u.chat_id); loadMessages(u.chat_id)}} disabled={loadingMessages}>{u.username}</button>)}
                 </ul>
             </div>
 
@@ -110,7 +110,7 @@ export default function AllChatsIncludesCurrentUser({ currentUserId }: { current
                 <div className="fixed flex items-center top-0 left-[300px] h-[40px] right-0 px-4 text-[15px] border-b-2 border-[#4D4D4D] bg-[#212121]">
                   <p>{currentChatUsername}</p>
                 </div>
-                <ChatMessages messages={messages}/>
+                <ChatMessages messages={messages} currentUserId={currentUserId}/>
             </div>
             <div className="fixed bottom-2 left-[300px] right-0 px-4">
                 <form className='flex items-center gap-2 bg-[#2E2E2E] rounded-full px-3 py-2' onSubmit={e => { e.preventDefault(); sendMessage(); }}>

@@ -7,9 +7,10 @@ type ChatMessage = {
 
 type ChatMessagesProps = {
   messages: ChatMessage[];
+  currentUserId: string;
 };
 
-export default function ChatMessages ({ messages }: ChatMessagesProps) {
+export default function ChatMessages ({ messages, currentUserId }: ChatMessagesProps) {
     return(
         <>
             <div className="ml-[10px]">
@@ -17,7 +18,7 @@ export default function ChatMessages ({ messages }: ChatMessagesProps) {
                 const date = new Date(m.created_at); // <-- конвертация
                 const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 return (
-                <p className='rounded-lg pt-[5px] pl-[8px] bg-[#252829] max-w-[330px] mb-[5px]' key={i}>
+                <p className={`rounded-lg pt-[5px] pl-[8px] ${(m.sender_id === currentUserId) ? 'bg-[#272829]' : 'bg-[#303030]'} max-w-[330px] mb-[5px]`} key={i}>
                     <strong className="text-[13px]">{m.sender_username}</strong>
                     <span className="text-[14px] mr-[6px]">: {m.content}</span>
                     <p className="flex justify-end text-[8px] pr-[3px]">{timeStr}</p>
