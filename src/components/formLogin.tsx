@@ -13,48 +13,47 @@ export default function FormLogin() {
     const [loading, setLoading] = useState(false);
 
     async function handleSubmit(e: React.FormEvent) {
-        e.preventDefault();
-        setLoading(true);
+    e.preventDefault();
+    setLoading(true);
 
-        // Логика формирования email из username
-        const email = username.includes('@') ? username : `${username}@app.local`;
+    // Подготовка email
+    const userEmail = username.includes('@') ? username : `${username}@app.local`;
 
-        try {
-            const { data, error } = await supabase.auth.signUp({
-                email: email,
-                password: password
-            });
+    try {
+        // 1. Регистрация в Auth
+        const { data, error: signupError } = await supabase.auth.signUp({
+            email: userEmail,
+            password: password
+        });
 
-            if (error) {
-                console.error('[FormLogin] Supabase signup error:', error.message);
-                alert(error.message);
-                return;
-            }
-
-            if (data.user) {
-                console.log('[FormLogin] Signup successful. ID:', data.user.id);
-                
-                // Создаем переменную fullName (с маленькой буквы, так принято)
-                const fullName = username; 
-
-                // Передаем её четвертым аргументом
-                const result = await SentFormData(
-                    email, 
-                    password, 
-                    username, 
-                    fullName, 
-                    data.user.id
-                );
-                
-                console.log('[FormLogin] SentFormData result:', result);
-                alert("Регистрация успешна!");
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
+        if (signupError) {
+            alert(signupError.message);
+            return;
         }
+
+        if (data.user) {
+            console.log('User created in Auth:', data.user.id);
+
+            // 2. ОТПРАВЛЯЕМ ДАННЫЕ В ТАБЛИЦУ
+            // Передаем ровно 5 аргументов, как просит серверная функция
+            // В качестве 'name' передаем текущий username
+            const result = await SentFormData(
+                userEmail,         // 1. email
+                password,          // 2. password
+                username,          // 3. username
+                username,          // 4. name (дублируем ник как имя)
+                data.user.id       // 5. userId
+            );
+
+            console.log('Database Result:', result);
+            alert("Успешно! Теперь можно войти.");
+        }
+    } catch (err) {
+        console.error("Critical error:", err);
+    } finally {
+        setLoading(false);
     }
+}
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
