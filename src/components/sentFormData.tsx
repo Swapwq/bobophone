@@ -2,11 +2,11 @@
 
 import { prisma } from '../../lib/prisma';
 
-export default async function SentFormData(email: string, password: string, username: string, userId: string) {
+export default async function SentFormData(email: string, password: string, username: string, name: string, userId: string) {
     try {
         // Check if user already exists in public_users table
         const existingUser = await prisma.public_users.findUnique({
-            where: { email }
+            where: { username }
         });
 
         if (existingUser) {
@@ -17,9 +17,9 @@ export default async function SentFormData(email: string, password: string, user
         // Create user in public_users table with the auth user ID
         const newUser = await prisma.public_users.create({
             data: {
-                email,
                 password,
                 username,
+                name,
                 id: userId
             }
         });

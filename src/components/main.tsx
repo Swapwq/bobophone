@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { use, useEffect } from 'react';
 import { Search, MessageSquare, User, Settings, Bell, Phone, Video, Send, Paperclip, ChevronRight } from 'lucide-react';
 import { 
  Palette, Lock, 
@@ -11,7 +11,11 @@ import { useState } from 'react';
 
 import NewTypeOfChatMessage from "@/components/NewTypeOfChatMessage";
 import Loader from '@/components/Loader';
-import { error } from 'console';
+
+import { createClient } from '../../lib/supabase';
+import SearchSidebar from './searchSideBar';
+
+const supabase = createClient();
 
 type ChatUser = {
   user_id: string;
@@ -25,16 +29,85 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
     const [isOpen, setIsOpen] = useState(false);
     const [usernames, setUsernames] = useState<{ user_id: string; chat_id: string; username: string; last_message_text?: string | null; last_message_at?: string | Date | null }[]>([]);
        const [loadingMessages, setLoadingMessages] = useState(false);
-       const [messages, setMessages] = useState<{ sender_id: string; content: string; created_at: Date; sender_username: string }[]>([]);
+       const [messages, setMessages] = useState<any[]>([]);
        const [message, setMessage] = useState("");
        const [sending, setSending] = useState(false);
        const [selectedChatId, setSelectedChatId] = useState('');
+       const [typingUser, setTypingUser] = useState<string | null>(null);
+       const [searchQuery, setSearchQuery] = useState("");
        const [profile, setProfile] = useState({
             name: "Ivan Petrov",
             phone: "+(13) 356 7980",
             username: "@ivanp",
             status: "Available"
             });
+
+      let lastTypingTime = 0;
+
+      function handleTyping() {
+        const now = Date.now();
+
+        if (now - lastTypingTime > 2000) {
+          lastTypingTime = now;
+          supabase.channel(`chat-${selectedChatId}`).send({
+            type: 'broadcast',
+            event: 'typing',
+            payload: {
+              username: profile.username,
+            },
+          })
+        }
+      }
+
+      useEffect(() => {
+        if (!selectedChatId || !currentUserId) return;
+
+        const channel = supabase.channel(`chat-${selectedChatId}`);
+
+        channel
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'message',
+              filter: `chat_id=eq.${selectedChatId}`,
+            },
+            (payload) => {
+              const newMessage = payload.new;
+              if (newMessage.sender_id === currentUserId) return;
+
+              setMessages((prev) => {
+                if (prev.some((m) => m.id === newMessage.id)) return prev;
+                return [...prev, { 
+                  ...newMessage, 
+                  created_at: new Date(newMessage.created_at) 
+                }];
+              });
+            }
+          )
+          // Слушаем статус "печатает" (Broadcast)
+          .on('broadcast', { event: 'typing' }, (payload) => {
+            // Игнорируем, если это пришло от нас самих (хотя в Broadcast по умолчанию self: false)
+            if (payload.payload.username === profile.username) return;
+
+            setTypingUser(payload.payload.username);
+            
+            // Таймер очистки (используем window.setTimeout для ясности)
+            const timeout = setTimeout(() => {
+              setTypingUser(null);
+            }, 3000);
+
+            return () => clearTimeout(timeout);
+          })
+          .subscribe((status) => {
+            console.log(`Realtime status для чата ${selectedChatId}:`, status);
+          });
+
+        return () => {
+          supabase.removeChannel(channel);
+        };
+      }, [selectedChatId, currentUserId]); // Убрал supabase из зависимостей, он внешний
 
 // Функция для обновления полей
         const handleProfileChange = (field: string, value: string) => {
@@ -100,72 +173,73 @@ useEffect(() => {
 }, [currentUserId]);
 
 // 2. Функция загрузки сообщений конкретного чата
-async function loadMessages(chatId: string) {
-  setLoadingMessages(true);
-  try {
-    const res = await fetch(`/api/chatsMessage?chatId=${chatId}`);
-    const data = await res.json();
-    setMessages(data);
-  } catch (err) {
-    console.error("Ошибка загрузки сообщений:", err);
-  } finally {
-    setLoadingMessages(false);
-  }
-}
+    async function loadMessages(chatId: string) {
+      setLoadingMessages(true);
+      try {
+        const res = await fetch(`/api/chatsMessage?chatId=${chatId}`);
+        const data = await res.json();
+        setMessages(data);
+      } catch (err) {
+        console.error("Ошибка загрузки сообщений:", err);
+      } finally {
+        setLoadingMessages(false);
+      }
+    }
 
-// 3. Функция отправки сообщения
-async function sendMessage() {
-  if (!message.trim() || !selectedChatId) return;
+    // 3. Функция отправки сообщения
+    async function sendMessage() {
+      if (!message.trim() || !selectedChatId) return;
 
-  setSending(true);
+      setSending(true);
 
-  try {
-    const sentTime = new Date().toISOString();
-    const res = await fetch("/api/sendMessage", {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: selectedChatId,
-        sender_id: currentUserId,
-        content: message,
-        created_at: sentTime,
-      })
-    });
-
-    if (!res.ok) throw new Error("Failed to send");
-
-    const rawMessage = await res.json();
-
-    // Обновляем список сообщений
-    setMessages(prev => [
-      ...prev,
-      {
-        sender_id: rawMessage.sender_id,
-        content: rawMessage.content,
-        created_at: new Date(rawMessage.created_at),
-        sender_username: rawMessage.sender_username,
-      },
-    ]);
-
-    // Обновляем список чатов слева
-    setUsernames(prevChats => {
-      return prevChats
-        .map(chat => {
-          if (chat.chat_id === selectedChatId) {
-            return {
-              ...chat,
-              last_message_text: rawMessage.content,
-              last_message_at: rawMessage.created_at
-            };
-          }
-          return chat;
-        })
-        .sort((a, b) => {
-          const dateA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-          const dateB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-          return dateB - dateA;
+      try {
+        const sentTime = new Date().toISOString();
+        const res = await fetch("/api/sendMessage", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: selectedChatId,
+            sender_id: currentUserId,
+            content: message,
+            created_at: sentTime,
+          })
         });
-    });
+
+        if (!res.ok) throw new Error("Failed to send");
+
+        const rawMessage = await res.json();
+
+        // Обновляем список сообщений
+        setMessages(prev => [
+          ...prev,
+          {
+            id: rawMessage.id,
+            sender_id: rawMessage.sender_id,
+            content: rawMessage.content,
+            created_at: new Date(rawMessage.created_at),
+            sender_username: rawMessage.sender_username,
+          },
+        ]);
+
+        // Обновляем список чатов слева
+        setUsernames(prevChats => {
+          return prevChats
+            .map(chat => {
+              if (chat.chat_id === selectedChatId) {
+                return {
+                  ...chat,
+                  last_message_text: rawMessage.content,
+                  last_message_at: rawMessage.created_at
+                };
+              }
+              return chat;
+            })
+            .sort((a, b) => {
+              const dateA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+              const dateB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+              return dateB - dateA;
+            });
+        });
 
     setMessage(''); // Очищаем инпут
   } catch (err) {
@@ -194,15 +268,11 @@ async function sendMessage() {
 
       {/* Список чатов (как в Telegram) */}
       <div className="w-80 border-r border-gray-200 flex flex-col">
-        <div className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 text-gray-400 size-4" />
-            <input 
-              placeholder="Search" 
-              className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg focus:outline-none text-sm"
-            />
-          </div>
-        </div>
+        <SearchSidebar 
+          searchQuery={searchQuery} 
+          setSearchQuery={setSearchQuery} 
+          currentUserId={currentUserId} 
+        />
         <div className="flex-1 overflow-y-auto">
           {usernames.map((u) => {
             const isActive = selectedChatId === u.chat_id;
@@ -261,7 +331,7 @@ async function sendMessage() {
             <div className="w-10 h-10 bg-blue-100 rounded-full mr-3" />
             <div>
               <h2 className="font-bold text-sm">{currentChatUsername}</h2>
-              <span className="text-xs text-green-500">online</span>
+              {typingUser && <p className="text-xs text-blue-500 italic">{typingUser} печатает...</p>}
             </div>
           </div>
           <div className="flex items-center gap-4 text-gray-400">
@@ -295,7 +365,7 @@ async function sendMessage() {
                 <input 
                 type="text"
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(e) => { setMessage(e.target.value); handleTyping(); }}
                 placeholder="Write a message..." 
                 className="w-full bg-transparent text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none"
                 />

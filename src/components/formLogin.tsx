@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Mail, Lock, User } from 'lucide-react'; // Добавил иконку User
 import SentFormData from './sentFormData';
 import { createClient } from '../../lib/supabase';
-import Link from "next/link";
+import Link from 'next/link';
 
 export default function FormLogin() {
     const supabase = createClient();
@@ -90,14 +90,13 @@ export default function FormLogin() {
                     </button>
                 </form>
 
-                <div className="mt-8 pt-6 border-t border-gray-100">
-                    <p className="mt-6 text-sm text-gray-500">
-                        Уже есть аккаунт?{" "}
-                        <Link href="/login" className="text-blue-500 font-medium hover:underline">
-                            Войти
-                        </Link>
-                    </p>
-                </div>
+
+                <p className="mt-6 text-sm text-gray-500">
+                    Уже есть аккаунт?{" "}
+                    <Link href="/login" className="text-blue-500 font-medium hover:underline">
+                        Войти
+                    </Link>
+                </p>
             </div>
         </div>
     );

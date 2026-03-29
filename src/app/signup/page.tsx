@@ -1,9 +1,7 @@
-import Image from "next/image";
-import '../globals.css';
-import FormLogin from "@/components/formLogin";
+import Login from "@/components/regestraton";
 
 export default function Home() {
   return (
-        <FormLogin/>
+        <Login/>
   );
 }

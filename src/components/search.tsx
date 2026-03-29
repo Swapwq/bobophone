@@ -3,69 +3,44 @@
 import { prisma } from "../../lib/prisma"
 import type { SearchUserResult } from "@/types/user";
 
-export default async function Search(username: string | undefined, currentUserId?: string): Promise<SearchUserResult[]> {
-  // Validate and sanitize input
-  if (!username || typeof username !== 'string') {
-    return [];
-  }
+export default async function Search(
+  username: string | undefined, 
+  currentUserId?: string
+): Promise<SearchUserResult[]> {
+  
+  // 1. Валидация
+  if (!username || typeof username !== 'string') return [];
 
-  const trimmedUsername = username.trim();
-
-  // Minimum search length to prevent excessive queries
-  if (trimmedUsername.length < 2) {
-    return [];
-  }
+  const trimmedQuery = username.trim();
+  if (trimmedQuery.length < 2) return [];
 
   try {
-    console.log('[Search] Query params:', { trimmedUsername, currentUserId });
-
-    // First, let's check all users in the database
-    const allUsers = await prisma.public_users.findMany({
-      select: {
-        id: true,
-        username: true,
-        email: true,
-      },
-    });
-    console.log('[Search] All users in DB:', allUsers);
-    console.log('[Search] Total users count:', allUsers.length);
-
-    // Now search with the query
+    // 2. Поиск только по username
     const users = await prisma.public_users.findMany({
       where: {
-        username: {
-          contains: trimmedUsername,
-          mode: 'insensitive',
+        username: { 
+          contains: trimmedQuery, 
+          mode: 'insensitive' 
+        },
+        // Исключаем себя, чтобы не найти самого себя в поиске
+        NOT: {
+          id: currentUserId,
         },
       },
       select: {
         id: true,
         username: true,
-        email: true,
+        // Почту убрали отсюда
       },
       take: 10,
     });
 
-    console.log('[Search] Search results:', users);
-    console.log('[Search] Number of results:', users.length);
+    // 3. Возвращаем результат
+    // Фильтруем на случай, если id в схеме помечен как nullable
+    return users.filter((u): u is SearchUserResult => u.id !== null);
 
-    // Filter out users with null id and exclude current user
-    const filtered = users.filter((user): user is SearchUserResult => {
-      if (user.id === null) {
-        console.log('[Search] Filtering out user with null id:', user);
-        return false;
-      }
-      if (currentUserId && user.id === currentUserId) {
-        console.log('[Search] Filtering out current user:', user);
-        return false;
-      }
-      return true;
-    });
-
-    console.log('[Search] Filtered results:', filtered);
-    return filtered;
   } catch (error) {
-    console.error("[Search] Error:", error);
+    console.error("[Search Server Action] Error:", error);
     return [];
   }
 }
