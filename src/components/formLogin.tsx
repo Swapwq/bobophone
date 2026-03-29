@@ -1,71 +1,61 @@
 'use client'
 
 import { useState } from "react";
-import { Mail, Lock, User } from 'lucide-react'; // Добавил иконку User
-import { SentFormData } from './sentFormData';
+import { Lock, User } from 'lucide-react';
 import { createClient } from '../../lib/supabase';
+import { useRouter } from 'next/navigation'; // Для перенаправления
 import Link from 'next/link';
 
 export default function FormLogin() {
     const supabase = createClient();
+    const router = useRouter();
+    
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
 
-    async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
+    async function handleLogin(e: React.FormEvent) {
+        e.preventDefault();
+        setLoading(true);
 
-    // Подготовка email
-    const userEmail = username.includes('@') ? username : `${username}@app.local`;
+        // Превращаем username в тот же системный email, что и при регистрации
+        const userEmail = username.includes('@') ? username : `${username}@app.local`;
 
-    try {
-        // 1. Регистрация в Auth
-        const { data, error: signupError } = await supabase.auth.signUp({
-            email: userEmail,
-            password: password
-        });
+        try {
+            // 1. Авторизация через Supabase
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: userEmail,
+                password: password
+            });
 
-        if (signupError) {
-            alert(signupError.message);
-            return;
+            if (error) {
+                console.error('[Login] Error:', error.message);
+                alert("Ошибка входа: " + error.message);
+                return;
+            }
+
+            if (data.user) {
+                console.log('[Login] Успешный вход:', data.user.id);
+                // 2. Перекидываем пользователя в сам мессенджер (например, на /chat)
+                router.push('/chat'); 
+            }
+        } catch (err) {
+            console.error("Critical error during login:", err);
+        } finally {
+            setLoading(false);
         }
-
-        if (data.user) {
-            console.log('User created in Auth:', data.user.id);
-
-            // 2. ОТПРАВЛЯЕМ ДАННЫЕ В ТАБЛИЦУ
-            // Передаем ровно 5 аргументов, как просит серверная функция
-            // В качестве 'name' передаем текущий username
-            const result = await SentFormData(
-                userEmail,         // 1. email
-                password,          // 2. password
-                username,          // 3. username
-                username,          // 4. name (дублируем ник как имя)
-                data.user.id       // 5. userId
-            );
-
-            console.log('Database Result:', result);
-            alert("Успешно! Теперь можно войти.");
-        }
-    } catch (err) {
-        console.error("Critical error:", err);
-    } finally {
-        setLoading(false);
     }
-}
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
             <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center">
-                {/* Логотип приложения */}
                 <div className="bg-blue-500 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-200">
                     <div className="text-white text-3xl font-bold">M</div>
                 </div>
 
-                <h1 className="text-2xl font-bold mb-8">Создать аккаунт</h1>
+                <h1 className="text-2xl font-bold mb-8">Войти в аккаунт</h1>
 
-                <form onSubmit={handleSubmit} className="space-y-4 text-left">
+                <form onSubmit={handleLogin} className="space-y-4 text-left">
                     {/* Поле Username */}
                     <div className="relative">
                         <User className="absolute left-3 top-3 text-gray-400 size-5" />
@@ -97,13 +87,14 @@ export default function FormLogin() {
                         disabled={loading}
                         className="w-full bg-blue-500 text-white py-3 rounded-xl font-semibold mt-8 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-blue-100"
                     >
-                        {loading ? "Загрузка..." : "Зарегистрироваться"}
+                        {loading ? "Входим..." : "Войти"}
                     </button>
                 </form>
+
                 <p className="mt-6 text-sm text-gray-500">
-                    Уже есть аккаунт?{" "}
-                    <Link href="/login" className="text-blue-500 font-medium hover:underline">
-                        Войти
+                    Нет аккаунта?{" "}
+                    <Link href="/signup" className="text-blue-500 font-medium hover:underline">
+                        Зарегистрироваться
                     </Link>
                 </p>
             </div>
