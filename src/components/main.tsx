@@ -148,12 +148,25 @@ useEffect(() => {
     if (!currentUserId) return;
 
     try {
-      // Загружаем список чатов
+      // 1. Загружаем список чатов
       const chatsRes = await fetch(`/api/chats?currentUserId=${currentUserId}`);
       const chatsData: ChatUser[] = await chatsRes.json();
+      
       setUsernames(chatsData);
 
-      // Загружаем данные профиля
+      // ПРОВЕРКА: Если чатов 0 — просто выключаем лоадер и выходим
+      if (!chatsData || chatsData.length === 0) {
+        setLoadingMessages(false);
+        console.log("У пользователя еще нет чатов.");
+        return; 
+      }
+
+      // 2. Если чаты есть — выбираем самый верхний
+      const lastChat = chatsData[0];
+      setSelectedChatId(lastChat.chat_id);
+      loadMessages(lastChat.chat_id);
+
+      // 3. Загружаем профиль (твой код)
       const profileRes = await fetch(`/api/getProfile?userId=${currentUserId}`);
       if (profileRes.ok) {
         const profileData = await profileRes.json();
@@ -165,7 +178,8 @@ useEffect(() => {
         });
       }
     } catch (err) {
-      console.error("Ошибка при инициализации данных:", err);
+      console.error("Ошибка при загрузке данных:", err);
+      setLoadingMessages(false);
     }
   }
 
@@ -248,9 +262,8 @@ useEffect(() => {
     setSending(false);
   }
 }
-    
-      if (!usernames.length) return (<div className="flex items-center justify-center h-screen"><Loader /></div>);
-      const currentChatUsername = usernames.find(u => u.chat_id === selectedChatId)?.username;
+    const currentChat = usernames.find(u => u.chat_id === selectedChatId);
+    const currentChatUsername = currentChat ? currentChat.username : "Выберите чат";
 
       const lastMessage = messages.at(-1);
 
@@ -273,53 +286,59 @@ useEffect(() => {
           setSearchQuery={setSearchQuery} 
           currentUserId={currentUserId} 
         />
-        <div className="flex-1 overflow-y-auto">
-          {usernames.map((u) => {
-            const isActive = selectedChatId === u.chat_id;
-
-            return (
-                <div 
-                key={u.chat_id} 
-                className={`flex items-center p-4 cursor-pointer border-b border-gray-50 transition-all ${
-                    isActive ? "bg-blue-50 border-l-4 border-l-blue-500" : "hover:bg-gray-50"
-                }`} 
+        <div className="flex-1 overflow-y-auto bg-white border-r border-gray-100">
+          {/* ПРОВЕРКА: Если массив пустой или еще грузится */}
+          {usernames.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+              {/* Иконка или просто эмодзи */}
+              <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                <span className="text-2xl">🔍</span>
+              </div>
+              <h3 className="text-sm font-semibold text-gray-900">Чатов пока нет</h3>
+              <p className="text-xs text-gray-500 mt-1 max-w-[180px]">
+                Найдите собеседника по поиску или подождите первого сообщения
+              </p>
+              
+              {/* Кнопка-заглушка для будущего поиска */}
+              <button className="mt-4 px-4 py-2 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 transition-colors">
+                Найти людей
+              </button>
+            </div>
+          ) : (
+            /* Если чаты есть — рендерим список */
+            usernames.map((chat) => (
+              <div
+                key={chat.chat_id}
                 onClick={() => {
-                    setSelectedChatId(u.chat_id); 
-                    loadMessages(u.chat_id);
+                  setSelectedChatId(chat.chat_id);
+                  loadMessages(chat.chat_id);
                 }}
-                >
-                {/* Аватарка: первая буква имени на синем фоне */}
-                <div className="w-12 h-12 bg-blue-100 rounded-full mr-3 flex-shrink-0 flex items-center justify-center text-blue-600 font-bold text-lg shadow-sm">
-                    {u.username?.charAt(0).toUpperCase() || "?"}
+                className={`flex items-center p-4 cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-50 ${
+                  selectedChatId === chat.chat_id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                }`}
+              >
+                {/* Аватарка (заглушка) */}
+                <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                  {chat.username?.[0]?.toUpperCase() || 'U'}
                 </div>
 
-                <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-baseline">
-                    <h3 className={`font-semibold text-sm truncate ${isActive ? "text-blue-600" : "text-gray-900"}`}>
-                        {u.username}
-                    </h3>
-                    
-                    {/* Реальное время последнего сообщения */}
-                    <span className="text-[10px] text-gray-400 ml-2 flex-shrink-0 font-medium">
-                        {u.last_message_at ? (
-                        new Date(u.last_message_at).toLocaleTimeString([], { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                        })
-                        ) : (
-                        ""
-                        )}
+                {/* Инфо о чате */}
+                <div className="ml-4 flex-1 min-w-0">
+                  <div className="flex justify-between items-baseline">
+                    <h4 className="text-sm font-bold text-gray-900 truncate">
+                      {chat.username || 'Unknown User'}
+                    </h4>
+                    <span className="text-[10px] text-gray-400">
+                      {chat.last_message_at ? new Date(chat.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                     </span>
-                    </div>
-
-                    {/* Реальный текст последнего сообщения */}
-                    <p className={`text-xs truncate mt-0.5 ${isActive ? "text-blue-500/80" : "text-gray-500"}`}>
-                    {u.last_message_text || "No messages yet"}
-                    </p>
+                  </div>
+                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                    {chat.last_message_text || 'Нет сообщений'}
+                  </p>
                 </div>
-                </div>
-            );
-            })}
+              </div>
+            ))
+          )}
         </div>
       </div>
 
