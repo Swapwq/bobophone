@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Mail, Lock, User } from 'lucide-react'; // Добавил иконку User
-import SentFormData from './sentFormData';
+import { SentFormData } from './sentFormData';
 import { createClient } from '../../lib/supabase';
 import Link from 'next/link';
 
@@ -33,7 +33,19 @@ export default function FormLogin() {
 
             if (data.user) {
                 console.log('[FormLogin] Signup successful. ID:', data.user.id);
-                const result = await SentFormData(email, password, username, data.user.id);
+                
+                // Создаем переменную fullName (с маленькой буквы, так принято)
+                const fullName = username; 
+
+                // Передаем её четвертым аргументом
+                const result = await SentFormData(
+                    email, 
+                    password, 
+                    username, 
+                    fullName, 
+                    data.user.id
+                );
+                
                 console.log('[FormLogin] SentFormData result:', result);
                 alert("Регистрация успешна!");
             }
@@ -89,8 +101,6 @@ export default function FormLogin() {
                         {loading ? "Загрузка..." : "Зарегистрироваться"}
                     </button>
                 </form>
-
-
                 <p className="mt-6 text-sm text-gray-500">
                     Уже есть аккаунт?{" "}
                     <Link href="/login" className="text-blue-500 font-medium hover:underline">

@@ -2,7 +2,7 @@
 
 import { prisma } from '../../lib/prisma';
 
-export default async function SentFormData(email: string, password: string, username: string, name: string, userId: string) {
+export async function SentFormData(email: string, password: string, username: string, name: string, userId: string) {
     try {
         // Check if user already exists in public_users table
         const existingUser = await prisma.public_users.findUnique({
