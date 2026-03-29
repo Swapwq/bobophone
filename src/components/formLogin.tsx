@@ -37,7 +37,8 @@ export default function FormLogin() {
             if (data.user) {
                 console.log('[Login] Успешный вход:', data.user.id);
                 // 2. Перекидываем пользователя в сам мессенджер (например, на /chat)
-                router.push('/chat'); 
+                router.refresh(); 
+                router.push('/');
             }
         } catch (err) {
             console.error("Critical error during login:", err);
