@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Mail, Lock, User, AtSign, ChevronRight } from 'lucide-react'; 
-import SentFormData from './sentFormData';
+import { SentFormData } from './sentFormData';
 import { createClient } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
 
