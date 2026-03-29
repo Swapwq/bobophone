@@ -18,6 +18,7 @@ export async function POST(req: Request) {
         chat_id: chat_id,
         sender_id: sender_id,
         content: content,
+        created_at: new Date(),
       },
       select: {
         sender_id: true,

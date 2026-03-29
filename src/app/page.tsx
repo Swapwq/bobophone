@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react";
 import { createClient } from "../../lib/supabase";
 import ChatSidebar from "@/components/chatSidebar";
-import SettingMenu from "@/components/settingsMenu";
+import Loader from "@/components/Loader";
+import Messanger from "./mainn/page";
 
 export default function Page() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -49,15 +50,17 @@ export default function Page() {
   if (!currentUserId) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p>Загрузка пользователя...</p>
+        
+        <Loader />
+
       </div>
     );
   }
 
   return (
     <>
-      <SettingMenu currentUserUsername={currentUsername ?? 'Loading...'} />
-      <ChatSidebar currentUserId={currentUserId} />
+      
+      <Messanger currentUserId={currentUserId} />
     </>
   );
 }

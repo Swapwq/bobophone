@@ -102,7 +102,7 @@ export default function AllChatsIncludesCurrentUser({ currentUserId }: { current
         <div className="flex justify-start">
             <div className="h-screen border-r-2 border-[#4D4D4D]">
                 <ul>
-                    {usernames.map((u, i) => <button key={u.chat_id} className={`flex items-center ${(selectedChatId === u.chat_id) ? 'bg-[#3D3D3D]' : 'bg-[#303030]'} w-[300px] h-[45px] pl-[15px] hover:bg-[#3D3D3D] transition duration-200 cursor-pointer`} onClick={() => {setSelectedChatId(u.chat_id); loadMessages(u.chat_id)}} disabled={loadingMessages}>{u.username}</button>)}
+                    {usernames.map((u, i) => <button key={u.chat_id} className={`flex items-center w-[300px] h-[45px] pl-[15px] hover:bg-[#3D3D3D] transition duration-200 cursor-pointer`} onClick={() => {setSelectedChatId(u.chat_id); loadMessages(u.chat_id)}} disabled={loadingMessages}>{u.username}</button>)}
                 </ul>
             </div>
 
