@@ -1,9 +1,8 @@
 'use client';
 import { useState, useEffect } from "react";
 import { createClient } from "../../lib/supabase";
-import ChatSidebar from "@/components/chatSidebar";
 import Loader from "@/components/Loader";
-import Messanger from "./mainn/page";
+import Messanger from "../components/main";
 
 export default function Page() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -15,7 +14,6 @@ export default function Page() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user?.id) {
         setCurrentUserId(user.id);
-        // После установки userId сразу грузим username
         loadUsername(user.id);
       }
     }
