@@ -11,6 +11,9 @@ const nextConfig = {
     // То же самое для линтера
     ignoreDuringBuilds: true,
   },
+  experimental: {
+    allowedDevOrigins: ['192.168.31.162:3000', 'localhost:3000'],
+  },
 };
 
 export default nextConfig;

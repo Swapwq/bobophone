@@ -10,7 +10,7 @@ export default function FormLogin() {
     const supabase = createClient();
     const router = useRouter();
     
-    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -18,13 +18,10 @@ export default function FormLogin() {
         e.preventDefault();
         setLoading(true);
 
-        // Превращаем username в тот же системный email, что и при регистрации
-        const userEmail = username.includes('@') ? username : `${username}@app.local`;
-
         try {
             // 1. Авторизация через Supabase
             const { data, error } = await supabase.auth.signInWithPassword({
-                email: userEmail,
+                email,
                 password: password
             });
 
@@ -36,7 +33,6 @@ export default function FormLogin() {
 
             if (data.user) {
                 console.log('[Login] Успешный вход:', data.user.id);
-                // 2. Перекидываем пользователя в сам мессенджер (например, на /chat)
                 router.refresh(); 
                 router.push('/');
             }
@@ -62,9 +58,9 @@ export default function FormLogin() {
                         <User className="absolute left-3 top-3 text-gray-400 size-5" />
                         <input
                             type="text"
-                            placeholder="Username"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
+                            placeholder="Email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
                             required
                             className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                         />

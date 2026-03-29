@@ -38,7 +38,7 @@ export default function SignupForm() {
                 // если SentFormData его еще не поддерживает
                 
                 console.log('Регистрация успешна:', result);
-                router.push('/'); // Уходим в мессенджер
+                router.push('/verify'); // Уходим в мессенджер
             }
         } catch (error: any) {
             alert(error.message);

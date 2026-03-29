@@ -1,6 +1,6 @@
 "use client";
 
-import React, { use, useEffect } from 'react';
+import React, { use, useCallback, useEffect } from 'react';
 import { Search, MessageSquare, User, Settings, Bell, Phone, Video, Send, Paperclip, ChevronRight } from 'lucide-react';
 import { 
  Palette, Lock, 
@@ -10,8 +10,6 @@ import {
 import { useState } from 'react';
 
 import NewTypeOfChatMessage from "@/components/NewTypeOfChatMessage";
-import Loader from '@/components/Loader';
-
 import { createClient } from '../../lib/supabase';
 import SearchSidebar from './searchSideBar';
 
@@ -262,10 +260,16 @@ useEffect(() => {
     setSending(false);
   }
 }
+
+const refreshChatList = useCallback(async () => {
+  if (!currentUserId) return;
+  const res = await fetch(`/api/chats?currentUserId=${currentUserId}`);
+  const data = await res.json();
+  setUsernames(data);
+},[currentUserId]);
+
     const currentChat = usernames.find(u => u.chat_id === selectedChatId);
     const currentChatUsername = currentChat ? currentChat.username : "Выберите чат";
-
-      const lastMessage = messages.at(-1);
 
   return (<>
     <div className="flex h-screen bg-white overflow-hidden">
@@ -285,6 +289,7 @@ useEffect(() => {
           searchQuery={searchQuery} 
           setSearchQuery={setSearchQuery} 
           currentUserId={currentUserId} 
+          onChatCreated={refreshChatList}
         />
         <div className="flex-1 overflow-y-auto bg-white border-r border-gray-100">
           {/* ПРОВЕРКА: Если массив пустой или еще грузится */}

@@ -15,14 +15,12 @@ export default async function Search(
   if (trimmedQuery.length < 2) return [];
 
   try {
-    // 2. Поиск только по username
     const users = await prisma.public_users.findMany({
       where: {
         username: { 
           contains: trimmedQuery, 
           mode: 'insensitive' 
         },
-        // Исключаем себя, чтобы не найти самого себя в поиске
         NOT: {
           id: currentUserId,
         },
@@ -30,7 +28,7 @@ export default async function Search(
       select: {
         id: true,
         username: true,
-        // Почту убрали отсюда
+        name: true,
       },
       take: 10,
     });

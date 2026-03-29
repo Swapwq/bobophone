@@ -11,14 +11,14 @@ interface SearchSidebarProps {
     searchQuery: string;
     setSearchQuery: (v: string) => void;
     currentUserId: string;
+    onChatCreated?: () => void;
 }
 
-export default function SearchSidebar({ searchQuery, setSearchQuery, currentUserId }: SearchSidebarProps) {
+export default function SearchSidebar({ searchQuery, setSearchQuery, currentUserId, onChatCreated }: SearchSidebarProps) {
     const [users, setUsers] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const supabase = createClient();
 
-    // Логика поиска (Debounce)
     useEffect(() => {
         const trimmed = searchQuery.trim();
         if (trimmed.length < 2) {
@@ -50,9 +50,9 @@ export default function SearchSidebar({ searchQuery, setSearchQuery, currentUser
         try {
             setIsLoading(true);
             await NewChat(currentUserId, user.id);
-            setSearchQuery(""); // Закрываем поиск
+            setSearchQuery("");
             setUsers([]);
-            // Здесь можно добавить window.location.reload() или обновление списка чатов
+            onChatCreated?.();
         } catch (err) {
             console.error("Ошибка создания чата:", err);
         } finally {
@@ -89,8 +89,8 @@ export default function SearchSidebar({ searchQuery, setSearchQuery, currentUser
                                     {user.username?.charAt(0).toUpperCase()}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-gray-900 truncate">{user.username}</p>
-                                    <p className="text-[11px] text-gray-500 truncate">{user.email}</p>
+                                    <p className="text-sm font-semibold text-gray-900 truncate">{user.name}</p>
+                                    <p className="text-[11px] text-gray-500 truncate">@{user.username}</p>
                                 </div>
                                 <UserPlus size={16} className="text-gray-300 group-hover:text-blue-500" />
                             </div>
