@@ -12,6 +12,9 @@ import { useState } from 'react';
 import NewTypeOfChatMessage from "@/components/NewTypeOfChatMessage";
 import { createClient } from '../../lib/supabase';
 import SearchSidebar from './searchSideBar';
+import LogoutAction from './signout';
+import { mark } from 'framer-motion/client';
+import { markMessagesAsRead } from './markAsRead';
 
 const supabase = createClient();
 
@@ -25,7 +28,7 @@ type ChatUser = {
 
 export default function Messanger({ currentUserId }: { currentUserId: string }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [usernames, setUsernames] = useState<{ user_id: string; chat_id: string; username: string; last_message_text?: string | null; last_message_at?: string | Date | null }[]>([]);
+    const [usernames, setUsernames] = useState<{ user_id: string; chat_id: string; username: string; last_message_text?: string | null; last_message_at?: string | Date | null; peerLastReadAt?: string | Date | null }[]>([]);
        const [loadingMessages, setLoadingMessages] = useState(false);
        const [messages, setMessages] = useState<any[]>([]);
        const [message, setMessage] = useState("");
@@ -57,6 +60,22 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
         }
       }
 
+      function PlaySound() {
+          const audio = new Audio('/notification.mp3');
+
+          audio.volume = 0.5
+
+          audio.play().catch(error => {
+              console.warn("Автовоспроизведение звука заблокировано. Кликните по странице!", error);
+          });
+      };
+
+      useEffect(() => {
+        if (selectedChatId && currentUserId) {
+          markMessagesAsRead(currentUserId, selectedChatId);
+      }
+      }, [selectedChatId, messages.length]);
+
       useEffect(() => {
         if (!selectedChatId || !currentUserId) return;
 
@@ -73,7 +92,18 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
             },
             (payload) => {
               const newMessage = payload.new;
+              if (payload.new.sender_id !== currentUserId) {
+                setUsernames(prev => prev.map(chat => 
+                  chat.chat_id === selectedChatId 
+                    ? { ...chat, peerLastReadAt: payload.new.last_read_at } 
+                    : chat
+                ));
+              }
               if (newMessage.sender_id === currentUserId) return;
+
+              if (newMessage.sender_id !== currentUserId) {
+                PlaySound();
+              }
 
               setMessages((prev) => {
                 if (prev.some((m) => m.id === newMessage.id)) return prev;
@@ -310,7 +340,6 @@ const refreshChatList = useCallback(async () => {
               </button>
             </div>
           ) : (
-            /* Если чаты есть — рендерим список */
             usernames.map((chat) => (
               <div
                 key={chat.chat_id}
@@ -365,7 +394,7 @@ const refreshChatList = useCallback(async () => {
           </div>
         </div>
 
-        <NewTypeOfChatMessage messages={messages} currentUserId={currentUserId}/>
+        <NewTypeOfChatMessage messages={messages} currentUserId={currentUserId} peerLastReadAt={currentChat?.peerLastReadAt} />
 
          {/* Input */}
 
@@ -428,10 +457,12 @@ const refreshChatList = useCallback(async () => {
           </nav>
 
           <div className="p-6 mt-auto border-t border-gray-100">
-            <button className="flex items-center gap-3 text-red-500 font-medium hover:bg-red-50 w-full p-3 rounded-xl transition-all">
+            <form action={LogoutAction}>
+            <button className="flex items-center gap-3 text-red-500 font-medium hover:bg-red-50 w-full p-3 rounded-xl transition-all cursor-pointer">
               <LogOut size={20} />
               Logout
             </button>
+            </form>
           </div>
         </div>
 
@@ -460,8 +491,6 @@ const refreshChatList = useCallback(async () => {
                 </p>
               </div>
             </div>
-
-            {/* Секция Account Info */}
             {/* Секция Account Info */}
             <section className="mb-10">
             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Account Info</h3>
@@ -489,7 +518,7 @@ const refreshChatList = useCallback(async () => {
                 <button 
                 onClick={saveProfileChanges}
                 disabled={sending}
-                className="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-2xl shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:opacity-50"
+                className="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-2xl shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                 {sending ? "Saving..." : "Save Changes"}
                 </button>
@@ -530,7 +559,7 @@ const refreshChatList = useCallback(async () => {
   </>);
 };  
 
-// Вспомогательные компоненты для чистоты кода
+
 function SettingsItem({ icon, label, active = false }: { icon: React.ReactNode, label: string, active?: boolean }) {
   return (
     <div className={`flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-all ${
@@ -549,7 +578,7 @@ function InfoRow({
 }: { 
   label: string; 
   value: string; 
-  onChange: (val: string) => void // Добавляем этот тип сюда
+  onChange: (val: string) => void
 }) {
   return (
     <div className="flex flex-col border-b border-gray-50 pb-3 transition-all focus-within:border-blue-400">

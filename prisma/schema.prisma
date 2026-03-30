@@ -442,6 +442,7 @@ model chatmember {
   joined_at         DateTime? @default(now()) @db.Timestamp(6)
   last_message_text String?
   last_message_at   DateTime? @db.Timestamptz(6)
+  last_read_at      DateTime  @default(now()) @db.Timestamptz(6)
   chat              chat?     @relation(fields: [chat_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   users             users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
@@ -450,12 +451,12 @@ model chatmember {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model message {
-  id           String       @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   created_at   DateTime     @db.Timestamptz(6)
   chat_id      String?      @db.Uuid
   sender_id    String       @db.Uuid
   content      String?
-  public_users public_users @relation(fields: [sender_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sender")
+  public_users public_users @relation(fields: [sender_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_sender")
   chat         chat?        @relation(fields: [chat_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@schema("public")
@@ -471,7 +472,7 @@ model public_users {
   phone    String?
   status   String?   @default("Available")
   message  message[]
-  users    users     @relation(fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "public_users_id_fkey1")
+  users    users     @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "public_users_id_fkey1")
 
   @@schema("public")
 }
