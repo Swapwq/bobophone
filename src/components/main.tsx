@@ -43,6 +43,8 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
             status: "Available"
             });
 
+      const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
       let lastTypingTime = 0;
 
       function handleTyping() {
@@ -119,14 +121,18 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
             // Игнорируем, если это пришло от нас самих (хотя в Broadcast по умолчанию self: false)
             if (payload.payload.username === profile.username) return;
 
+            if (typingTimeoutRef.current) {
+              clearTimeout(typingTimeoutRef.current);
+            }
+
             setTypingUser(payload.payload.username);
             
             // Таймер очистки (используем window.setTimeout для ясности)
-            const timeout = setTimeout(() => {
+            typingTimeoutRef.current = setTimeout(() => {
               setTypingUser(null);
+              typingTimeoutRef.current = null;
             }, 3000);
 
-            return () => clearTimeout(timeout);
           })
           .subscribe((status) => {
             console.log(`Realtime status для чата ${selectedChatId}:`, status);
