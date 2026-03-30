@@ -116,6 +116,20 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
               });
             }
           )
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chatmember', filter: `chat_id=eq.${selectedChatId}` }, 
+            (payload) => {
+              if (payload.new.user_id !== currentUserId) {
+                console.log("Получено обновление статуса прочтения от собеседника:", payload.new.user_id, payload.new.last_read_at);
+
+                setUsernames((prev) => prev.map(chat =>
+                  chat.chat_id === selectedChatId 
+                    ? { ...chat, peerLastReadAt: payload.new.last_read_at } 
+                    : chat
+                ));
+              }
+            })
+
+
           // Слушаем статус "печатает" (Broadcast)
           .on('broadcast', { event: 'typing' }, (payload) => {
             // Игнорируем, если это пришло от нас самих (хотя в Broadcast по умолчанию self: false)
