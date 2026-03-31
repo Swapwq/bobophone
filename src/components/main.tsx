@@ -88,6 +88,7 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
         online.on('presence', { event: 'sync' }, () => {
           const newState = online.presenceState();
           const onlineUsersIds = Object.keys(newState);
+          console.log("Синхронизация присутствия. Онлайн пользователи:", onlineUsersIds);
           setOnlineUsers(onlineUsersIds);
         }).on('presence', { event: 'join' }, ({ key: currentUserId }) => {
           console.log(`Пользователь ${currentUserId} онлайн`);
@@ -409,8 +410,14 @@ const refreshChatList = useCallback(async () => {
                 }`}
               >
                 {/* Аватарка (заглушка) */}
-                <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                  {chat.username?.[0]?.toUpperCase() || 'U'}
+                <div className='relative flex-shrink-0'>
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                    {chat.username?.[0]?.toUpperCase() || 'U'}
+                  </div>
+
+                  {onlineUsers.includes(chat.user_id) && (
+                    <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full shadow-sm z-10"></span>
+                  )}
                 </div>
 
                 {/* Инфо о чате */}
@@ -436,23 +443,50 @@ const refreshChatList = useCallback(async () => {
       {/* Окно чата */}
       <div className="flex-1 flex flex-col bg-[#f4f7f9]">
         {/* Header */}
-        <div className="h-16 bg-white border-b flex items-center justify-between px-6">
-          <div className="flex items-center">
-            <div className="w-10 h-10 bg-blue-100 rounded-full mr-3" />
-            <div>
-              {onlineUsers.includes(currentChatInfo.user_id) && (
-                <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full"></span>
-              )}
-              <h2 className="font-bold text-sm">{currentChatInfo.username}</h2>
-              {typingUser && <p className="text-xs text-blue-500 italic">{typingUser} печатает...</p>}
+          <div className="h-16 bg-white border-b flex items-center justify-between px-6 shrink-0">
+            <div className="flex items-center">
+              {/* Аватарка собеседника с индикатором */}
+              <div className="relative mr-3">
+                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                  {/* Достаем первую букву ника или "U" если пусто */}
+                  {currentChat?.username ? currentChat.username[0].toUpperCase() : 'U'}
+                </div>
+                
+                {/* Индикатор онлайн прямо на аватарке */}
+                {currentChat?.user_id && onlineUsers.includes(currentChat.user_id) && (
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-bold text-sm text-gray-900">
+                    {currentChat?.username || "Загрузка..."}
+                  </h2>
+                </div>
+                {/* Текстовый статус под именем */}
+                {typingUser ? (
+                  <p className="text-[10px] text-blue-500 italic animate-pulse">
+                    {typingUser} печатает...
+                  </p>
+                ) : (
+                  <p className="text-[10px] font-medium transition-colors">
+                    {currentChat?.user_id && onlineUsers.includes(currentChat.user_id) ? (
+                      <span className="text-green-500">в сети</span>
+                    ) : (
+                      <span className="text-gray-400">не в сети</span>
+                    )}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 text-gray-400">
+              <Phone size={20} className="hover:text-blue-500 cursor-pointer transition-all active:scale-90" />
+              <Video size={20} className="hover:text-blue-500 cursor-pointer transition-all active:scale-90" />
+              <Search size={20} className="hover:text-blue-500 cursor-pointer transition-all active:scale-90" />
             </div>
           </div>
-          <div className="flex items-center gap-4 text-gray-400">
-            <Phone size={20} className="hover:text-blue-500 cursor-pointer" />
-            <Video size={20} className="hover:text-blue-500 cursor-pointer" />
-            <Search size={20} className="hover:text-blue-500 cursor-pointer" />
-          </div>
-        </div>
 
         <NewTypeOfChatMessage messages={messages} currentUserId={currentUserId} peerLastReadAt={currentChat?.peerLastReadAt} />
 
