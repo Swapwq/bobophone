@@ -23,13 +23,15 @@ type ChatUser = {
   user_id: string;
   chat_id: string;
   username: string;
+  name: string;
+  phone: string;
   last_message_text?: string | null;
   last_message_at?: string | Date | null;
 };
 
 export default function Messanger({ currentUserId }: { currentUserId: string }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [usernames, setUsernames] = useState<{ user_id: string; chat_id: string; username: string; last_message_text?: string | null; last_message_at?: string | Date | null; peerLastReadAt?: string | Date | null }[]>([]);
+    const [usernames, setUsernames] = useState<{ user_id: string; chat_id: string; username: string; name: string; phone: string; last_message_text?: string | null; last_message_at?: string | Date | null; peerLastReadAt?: string | Date | null }[]>([]);
        const [loadingMessages, setLoadingMessages] = useState(false);
        const [messages, setMessages] = useState<any[]>([]);
        const [message, setMessage] = useState("");
@@ -38,6 +40,7 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
        const [typingUser, setTypingUser] = useState<string | null>(null);
        const [searchQuery, setSearchQuery] = useState("");
        const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+       const [isUserProfileOpen, setIsUserProfileOpen] = useState(false);
        const [profile, setProfile] = useState({
             name: "Ivan Petrov",
             phone: "+(13) 356 7980",
@@ -102,7 +105,14 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
           }
         });
 
+        function handeTabClose() {
+          online.untrack();
+        }
+
+        window.addEventListener('beforeunload', handeTabClose);
+
         return () => {
+          window.removeEventListener('beforeunload', handeTabClose);
           supabase.removeChannel(online);
         };
       }, [currentUserId, profile.username]);
@@ -445,11 +455,15 @@ const refreshChatList = useCallback(async () => {
         {/* Header */}
           <div className="h-16 bg-white border-b flex items-center justify-between px-6 shrink-0">
             <div className="flex items-center">
+              <div 
+                  className="flex items-center cursor-pointer hover:bg-gray-50 p-1 rounded-xl transition-colors"
+                  onClick={() => setIsUserProfileOpen(true)}
+                >
               {/* Аватарка собеседника с индикатором */}
               <div className="relative mr-3">
                 <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm">
                   {/* Достаем первую букву ника или "U" если пусто */}
-                  {currentChat?.username ? currentChat.username[0].toUpperCase() : 'U'}
+                  {currentChat?.name ? currentChat.name[0].toUpperCase() : 'U'}
                 </div>
                 
                 {/* Индикатор онлайн прямо на аватарке */}
@@ -461,7 +475,7 @@ const refreshChatList = useCallback(async () => {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="font-bold text-sm text-gray-900">
-                    {currentChat?.username || "Загрузка..."}
+                    {currentChat?.name || "Загрузка..."}
                   </h2>
                 </div>
                 {/* Текстовый статус под именем */}
@@ -479,6 +493,7 @@ const refreshChatList = useCallback(async () => {
                   </p>
                 )}
               </div>
+            </div>
             </div>
 
             <div className="flex items-center gap-4 text-gray-400">
@@ -650,6 +665,111 @@ const refreshChatList = useCallback(async () => {
     </div>
     </div>
     )}
+    {isUserProfileOpen && currentChat && (
+        /* Overlay — затемнение и блюр */
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-300"
+          onClick={() => setIsUserProfileOpen(false)}
+        >
+          <div 
+            className="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300"
+            onClick={(e) => e.stopPropagation()} // Чтобы модалка не закрывалась при клике внутри
+          >
+            {/* Верхняя декоративная часть (Шапка карточки) */}
+            <div className="h-24 bg-gradient-to-r from-blue-500 to-indigo-600 relative">
+              <button 
+                onClick={() => setIsUserProfileOpen(false)}
+                className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors"
+              >
+                <Settings size={18} /> {/* Или крестик X */}
+              </button>
+            </div>
+
+            {/* Основной контент */}
+            <div className="px-8 pb-8 -mt-12 flex flex-col items-center">
+              {/* Аватарка с рамкой */}
+              <div className="relative">
+                <div className="w-24 h-24 bg-white rounded-3xl p-1 shadow-xl">
+                  <div className="w-full h-full bg-blue-100 rounded-[22px] flex items-center justify-center text-blue-600 text-3xl font-bold">
+                    {currentChat.username[0].toUpperCase()}
+                  </div>
+                </div>
+                {/* Индикатор онлайн */}
+                {onlineUsers.includes(currentChat.user_id) && (
+                  <span className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-4 border-white rounded-full"></span>
+                )}
+              </div>
+
+              {/* Имя и статус */}
+              <div className="mt-4 text-center">
+                <h2 className="text-xl font-bold text-gray-900">{currentChat.name}</h2>
+                <p className="text-sm font-medium text-gray-400 mt-1">
+                  {onlineUsers.includes(currentChat.user_id) ? 'В сети' : 'Был(а) недавно'}
+                </p>
+              </div>
+
+              {/* Инфо-блок */}
+
+
+              <div className="w-full mt-8 space-y-3">
+
+                <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-2xl">
+                  <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
+                    <User size={18} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase text-gray-400 font-bold">Full Name</p>
+                    <p className="text-sm font-semibold text-gray-800">
+                      {currentChat.name || "Not specified"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Блок с Телефоном */}
+                <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-2xl">
+                  <div className="p-2 bg-green-100 text-green-600 rounded-xl">
+                    <Phone size={18} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase text-gray-400 font-bold">Phone Number</p>
+                    <p className="text-sm font-semibold text-gray-800">
+                      {currentChat.phone || "Hidden"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-2xl">
+                  <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
+                    <User size={18} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase text-gray-400 font-bold">Username</p>
+                    <p className="text-sm font-semibold text-gray-800">@{currentChat.username.toLowerCase()}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-2xl">
+                  <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl">
+                    <Lock size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase text-gray-400 font-bold">User ID</p>
+                    <p className="text-[10px] font-mono text-gray-500 truncate">{currentChat.user_id}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Кнопка действия */}
+              <button 
+                onClick={() => setIsUserProfileOpen(false)}
+                className="mt-8 w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 transition-all active:scale-95"
+              >
+                Написать сообщение
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
   </>);
 };  
 
