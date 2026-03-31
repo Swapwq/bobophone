@@ -15,6 +15,7 @@ import SearchSidebar from './searchSideBar';
 import LogoutAction from './signout';
 import { mark } from 'framer-motion/client';
 import { markMessagesAsRead } from './markAsRead';
+import { channel } from 'diagnostics_channel';
 
 const supabase = createClient();
 
@@ -36,6 +37,7 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
        const [selectedChatId, setSelectedChatId] = useState('');
        const [typingUser, setTypingUser] = useState<string | null>(null);
        const [searchQuery, setSearchQuery] = useState("");
+       const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
        const [profile, setProfile] = useState({
             name: "Ivan Petrov",
             phone: "+(13) 356 7980",
@@ -71,6 +73,38 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
               console.warn("Автовоспроизведение звука заблокировано. Кликните по странице!", error);
           });
       };
+
+      useEffect(() => {
+        if (!currentUserId) return;
+
+        const online = supabase.channel('online-users', {
+          config: {
+            presence: {
+              key: currentUserId,
+            },
+          },
+        });
+
+        online.on('presence', { event: 'sync' }, () => {
+          const newState = online.presenceState();
+          const onlineUsersIds = Object.keys(newState);
+          setOnlineUsers(onlineUsersIds);
+        }).on('presence', { event: 'join' }, ({ key: currentUserId }) => {
+          console.log(`Пользователь ${currentUserId} онлайн`);
+        }).on('presence', { event: 'leave' }, ({ key: currentUserId }) => {
+          console.log(`Пользователь ${currentUserId} офлайн`);
+        }).subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            await online.track({ online_at: new Date().toISOString(),
+              username: profile.username
+             });
+          }
+        });
+
+        return () => {
+          supabase.removeChannel(online);
+        };
+      }, [currentUserId, profile.username]);
 
       useEffect(() => {
         if (selectedChatId && currentUserId) {
@@ -319,7 +353,10 @@ const refreshChatList = useCallback(async () => {
 },[currentUserId]);
 
     const currentChat = usernames.find(u => u.chat_id === selectedChatId);
-    const currentChatUsername = currentChat ? currentChat.username : "Выберите чат";
+    const currentChatInfo = {
+      username: currentChat?.username || 'Выберите чат',
+      user_id: currentChat?.user_id || 'Не выбран чат',
+    }
 
   return (<>
     <div className="flex h-screen bg-white overflow-hidden">
@@ -403,7 +440,10 @@ const refreshChatList = useCallback(async () => {
           <div className="flex items-center">
             <div className="w-10 h-10 bg-blue-100 rounded-full mr-3" />
             <div>
-              <h2 className="font-bold text-sm">{currentChatUsername}</h2>
+              {onlineUsers.includes(currentChatInfo.user_id) && (
+                <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full"></span>
+              )}
+              <h2 className="font-bold text-sm">{currentChatInfo.username}</h2>
               {typingUser && <p className="text-xs text-blue-500 italic">{typingUser} печатает...</p>}
             </div>
           </div>
