@@ -6,68 +6,77 @@ export async function GET(req: Request) {
   const currentUserId = url.searchParams.get("currentUserId");
   if (!currentUserId) return NextResponse.json([], { status: 400 });
 
-  // 1. Получаем участников чатов
-  const members = await prisma.chatmember.findMany({
-    where: {
-      chat: { chatmember: { some: { user_id: currentUserId } } },
-      user_id: { not: currentUserId },
-    },
-    select: { 
-      user_id: true, 
-      chat_id: true,
-      last_message_text: true, 
-      last_message_at: true,
-      last_read_at: true,
-      chat: {
+  try {
+    const members = await prisma.chatmember.findMany({
+      where: {
+        chat: { chatmember: { some: { user_id: currentUserId } } },
+        user_id: { not: currentUserId }
+      },
+      select: {
+        chat_id: true,
+        user_id: true,
+        last_message_text: true,
+        last_message_at: true,
+        chat: {
           select: {
             type: true,
             name: true
           }
+        },
+        users: { // Это системная таблица auth.users
+          select: {
+            public_users: { // Это ТВОЯ таблица с именами
+              select: {
+                name: true,
+                username: true,
+                phone: true
+              }
+            }
+          }
         }
-    },
-    orderBy: { last_message_at: 'desc' }
-  });
-
-  // 2. Собираем уникальные ID собеседников
-  const userIds = [...new Set(members.map(m => m.user_id).filter((id): id is string => !!id))];
-
-  // 3. Загружаем данные профилей (Тут всё верно было)
-  const usersData = await prisma.public_users.findMany({
-    where: { id: { in: userIds } },
-    select: { id: true, username: true, name: true, phone: true },
-  });
-
-  // --- ВОТ ТУТ БЫЛА ПОТЕРЯ ДАННЫХ ---
-  // Создаем мапу, чтобы сопоставить ID и данные юзера
-  const profilesMap = new Map(usersData.map(u => [u.id, u]));
-
-  const chatMap = new Map();
-
-  members.forEach((m: any) => {
-    if (chatMap.has(m.chat_id)) return;
-
-    const isGroup = m.chat?.type === 'group';
-    
-    // Ищем профиль в нашей загруженной мапе по ID
-    const profile: any = profilesMap.get(m.user_id);
-
-    chatMap.set(m.chat_id, {
-      chat_id: m.chat_id,
-      user_id: m.user_id,
-      last_message_text: m.last_message_text,
-      last_message_at: m.last_message_at,
-      last_read_at: m.last_read_at,
-      type: m.chat?.type || 'private',
-      
-      // ИСПОЛЬЗУЕМ profile ВМЕСТО m.public_users
-      name: isGroup 
-        ? (m.chat?.name || "Группа") 
-        : (profile?.name || profile?.username || "Пользователь"),
-      username: profile?.username || "",
-      phone: profile?.phone || "Скрыт",
-      full_name: profile?.name || profile?.username || "Не указано",
+      },
+      orderBy: { last_message_at: "desc" }
     });
-  });
 
-  return NextResponse.json(Array.from(chatMap.values()));
+    const uniqueChats: Record<string, any> = {};
+
+    members.forEach((m: any) => {
+      // КЛЮЧЕВОЙ МОМЕНТ: Если этот ID чата уже есть в объекте - ИГНОРИРУЕМ
+      if (uniqueChats[m.chat_id]) return;
+
+      const isGroup = m.chat?.type === 'group';
+      const profile = m.users?.public_users;
+
+      uniqueChats[m.chat_id] = {
+        chat_id: m.chat_id,
+        user_id: m.user_id,
+        last_message_text: m.last_message_text,
+        last_message_at: m.last_message_at,
+        type: m.chat?.type || 'private',
+        // Название чата
+        name: isGroup 
+          ? (m.chat?.name || "Групповой чат") 
+          : (profile?.name || profile?.username || "Пользователь"),
+        username: profile?.username || "",
+        phone: profile?.phone || "Скрыт"
+      };
+    });
+
+    // 2. Превращаем в массив
+    const formattedChats = Object.values(uniqueChats);
+
+    // 3. Сортируем (свежие сверху)
+    formattedChats.sort((a: any, b: any) => {
+      const dateA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+      const dateB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    console.log("ТЕПЕРЬ ОТПРАВЛЯЮ ЧАТОВ:", formattedChats.length); 
+
+    return NextResponse.json(formattedChats);
+  } catch (error) {
+    console.error("API ERROR:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
 }

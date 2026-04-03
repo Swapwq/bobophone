@@ -5,9 +5,11 @@ export async function POST(req: Request) {
     try {
         const { groupName, userIds, currentUserId } = await req.json();
 
+        // 1. Создаем чат с типом 'group'
         const newGroup = await prisma.chat.create({
             data: {
                 name: groupName,
+                type: 'group', // ВАЖНО: указываем, что это группа
                 chatmember: {
                     create: [
                         ...userIds.map((id: string) => ({ user_id: id })),
@@ -17,60 +19,59 @@ export async function POST(req: Request) {
             }
         });
 
+        // 2. Получаем обновленный список чатов (как в основном API)
         const members = await prisma.chatmember.findMany({
-            where: {
-                chat: {
-                chatmember: {
-                    some: { user_id: currentUserId }
-                }
+                where: {
+                    chat: { chatmember: { some: { user_id: currentUserId } } },
+                    user_id: { not: currentUserId }
                 },
-                // Оставляем это условие, чтобы находить собеседника в приватных чатах
-                user_id: { not: currentUserId }
-            },
-            select: {
-                chat_id: true,
-                user_id: true,
-                last_message_text: true,
-                last_message_at: true,
-                last_read_at: true,
-                // ВНИМАНИЕ: Достаем type и name из связанной таблицы Chat
-                chat: {
                 select: {
-                    type: true,
-                    name: true
-                }
+                    chat_id: true,
+                    user_id: true,
+                    last_message_text: true,
+                    last_message_at: true,
+                    chat: {
+                        select: {
+                            type: true,
+                            name: true
+                        }
+                    },
+                    // Заходим в системную таблицу users
+                    users: { 
+                        select: {
+                            // А из неё вытягиваем твою кастомную инфу
+                            public_users: {
+                                select: {
+                                    name: true,
+                                    username: true
+                                }
+                            }
+                        }
+                    }
                 },
-                // Достаем инфу о юзере (для имени в приватных чатах)
-                public_users: { // В логе ошибки у тебя написано users?, проверь имя связи в схеме!
-                select: {
-                    name: true,
-                    username: true
-                }
-                }
-            },
-            orderBy: {
-                last_message_at: "desc"
-            }
+                orderBy: { last_message_at: "desc" }
             });
 
-            // Мапим данные, чтобы фронт не сошел с ума
+            // Мапим данные с учетом новой вложенности
             const formattedChats = members.map((m: any) => {
-            const isGroup = m.chat?.type === 'group';
-            
-            return {
-                chat_id: m.chat_id,
-                user_id: m.user_id,
-                last_message_text: m.last_message_text,
-                last_message_at: m.last_message_at,
-                last_read_at: m.last_read_at,
-                type: m.chat?.type || 'private',
-                // Если группа — берем название чата, если личка — имя собеседника
-                name: isGroup ? (m.chat?.name || "Группа") : (m.users?.name || "Пользователь"),
-                username: m.users?.username || ""
-            };
-            });
+                const isGroup = m.chat?.type === 'group';
+                
+                // Данные теперь лежат в m.users.public_users
+                const profile = m.users?.public_users; 
 
-            return NextResponse.json(formattedChats);
+                return {
+                    chat_id: m.chat_id,
+                    user_id: m.user_id,
+                    last_message_text: m.last_message_text,
+                    last_message_at: m.last_message_at,
+                    type: m.chat?.type || 'private',
+                    name: isGroup 
+                        ? (m.chat?.name || "Группа") 
+                        : (profile?.name || profile?.username || "Пользователь"),
+                    username: profile?.username || ""
+                };
+            });
+        return NextResponse.json(formattedChats);
 
     } catch (error) {
         console.error("Error creating group:", error);

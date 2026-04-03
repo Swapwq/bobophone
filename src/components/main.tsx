@@ -527,12 +527,14 @@ async function deleteMessage( messageId: string) {
   }
 }
 
-const refreshChatList = useCallback(async () => {
-  if (!currentUserId) return;
-  const res = await fetch(`/api/chats?currentUserId=${currentUserId}`);
-  const data = await res.json();
-  setUsernames(data);
-},[currentUserId]);
+    const refreshChatList = useCallback(async () => {
+      if (!currentUserId) return;
+      const res = await fetch(`/api/chats?currentUserId=${currentUserId}`);
+      const data = await res.json();
+      
+      // ВАЖНО: Мы просто сетим новые данные, не добавляя их к старым
+      setUsernames(data); 
+    }, [currentUserId]);
 
     const currentChat = usernames.find(u => u.chat_id === selectedChatId);
     const currentChatInfo = {
@@ -869,20 +871,25 @@ const refreshChatList = useCallback(async () => {
 
           <div className="max-h-60 overflow-y-auto mb-6 space-y-2">
             <p className="text-[10px] font-bold text-gray-400 uppercase ml-2">Выберите участников</p>
-            {usernames.map(user => (
-              <label key={user.user_id} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-2xl cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={selectedUsers.includes(user.user_id)}
-                  onChange={(e) => {
-                    if (e.target.checked) setSelectedUsers([...selectedUsers, user.user_id]);
-                    else setSelectedUsers(selectedUsers.filter(id => id !== user.user_id));
-                  }}
-                  className="w-5 h-5 rounded-full border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm font-medium">{user.name}</span>
-              </label>
-            ))}
+           {usernames
+                .filter((user, index, self) => 
+                  index === self.findIndex((t) => t.user_id === user.user_id)
+                )
+                .map(user => (
+                  <label key={user.user_id} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-2xl cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedUsers.includes(user.user_id)}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedUsers([...selectedUsers, user.user_id]);
+                        else setSelectedUsers(selectedUsers.filter(id => id !== user.user_id));
+                      }}
+                      className="w-5 h-5 rounded-full border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium">{user.name}</span>
+                  </label>
+                ))
+              }
           </div>
 
           <div className="flex gap-3">
