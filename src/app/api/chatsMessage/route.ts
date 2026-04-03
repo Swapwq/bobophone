@@ -10,11 +10,14 @@ export async function GET(req: Request) {
         where: {
             chat_id: chatId
         },
+        orderBy: { created_at: 'asc' },
         select: {
         id: true,
           sender_id: true,
           content: true,
-          created_at: true
+          created_at: true,
+          is_edited: true,
+            reply_to_id: true
         }
           
     });

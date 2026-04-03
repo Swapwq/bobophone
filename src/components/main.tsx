@@ -1,7 +1,7 @@
 "use client";
 
 import React, { use, useCallback, useEffect } from 'react';
-import { Search, MessageSquare, User, Settings, Bell, Phone, Video, Send, Paperclip, ChevronRight } from 'lucide-react';
+import { Search, MessageSquare, User, Settings, Bell, Phone, Video, Send, Paperclip, ChevronRight, X } from 'lucide-react';
 import { 
  Palette, Lock, 
   LogOut, Camera, Moon 
@@ -13,7 +13,7 @@ import NewTypeOfChatMessage from "@/components/NewTypeOfChatMessage";
 import { createClient } from '../../lib/supabase';
 import SearchSidebar from './searchSideBar';
 import LogoutAction from './signout';
-import { mark } from 'framer-motion/client';
+import { mark, s } from 'framer-motion/client';
 import { markMessagesAsRead } from './markAsRead';
 import { channel } from 'diagnostics_channel';
 
@@ -41,6 +41,8 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
        const [searchQuery, setSearchQuery] = useState("");
        const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
        const [isUserProfileOpen, setIsUserProfileOpen] = useState(false);
+       const [editingMessage, setEditingMessage] = useState<any | null>(null);
+       const [replyingToMessage, setReplyingToMessage] = useState<any | null>(null);
        const [profile, setProfile] = useState({
             name: "Ivan Petrov",
             phone: "+(13) 356 7980",
@@ -51,6 +53,20 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
       const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
       let lastTypingTime = 0;
+
+      function startEdit(message: any) {
+          setEditingMessage(message);
+          setMessage(message.content);
+        }
+      
+      function startReply(message: any) {
+        setReplyingToMessage(message);
+        setEditingMessage(null);
+        setMessage('');
+
+        const input = document.querySelector('input[type="text"]') as HTMLInputElement;
+          input?.focus();
+      };
 
       function handleTyping() {
         const now = Date.now();
@@ -153,10 +169,22 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
               }
 
               setMessages((prev) => {
-                if (prev.some((m) => m.id === newMessage.id)) return prev;
+                // Если сообщение уже есть в списке (добавлено локально), 
+                // обновляем его данными из БД (там уже точно есть ID)
+                if (prev.some((m) => m.id === newMessage.id)) {
+                    return prev.map(m => m.id === newMessage.id ? {
+                        ...m,
+                        ...newMessage,
+                        created_at: new Date(newMessage.created_at),
+                        reply_to_id: newMessage.reply_to_id // Явно прописываем
+                    } : m);
+                }
+                
+                // Если это чужое сообщение:
                 return [...prev, { 
                   ...newMessage, 
-                  created_at: new Date(newMessage.created_at) 
+                  created_at: new Date(newMessage.created_at),
+                  reply_to_id: newMessage.reply_to_id // Явно прописываем
                 }];
               });
             }
@@ -172,8 +200,24 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
                     : chat
                 ));
               }
-            })
+            }
+          )
+          .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'message', filter: `chat_id=eq.${selectedChatId}` },
+            (payload) => {
+              const deletedId = payload.old.id;
 
+              setMessages((prev) => prev.filter(m => m.id !== deletedId));
+            }
+          )
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'message', filter: `chat_id=eq.${selectedChatId}` },
+            (payload) => {
+              console.log('Message has been edited:', payload.new);
+
+              setMessages((prev) => 
+                prev.map((m) => (m.id === payload.new.id ? { ...m, ...payload.new, created_at: new Date(payload.new.created_at) } : m))
+              );
+            }
+          )
 
           // Слушаем статус "печатает" (Broadcast)
           .on('broadcast', { event: 'typing' }, (payload) => {
@@ -297,6 +341,31 @@ useEffect(() => {
     async function sendMessage() {
       if (!message.trim() || !selectedChatId) return;
 
+      if (editingMessage) {
+        try {
+          const res = await fetch("/api/editMessage", {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message_id: editingMessage.id,
+              content: message,
+              currentUserId: currentUserId,
+            }),
+          });
+
+          if(res.ok) {
+            setEditingMessage(null);
+            setMessage('');
+          } else {
+            throw new Error("Failed to edit message");
+          }
+
+        } catch (error) {
+          console.error("Error editing message:", error);
+        }
+      } else {
+
+
       setSending(true);
 
       try {
@@ -309,6 +378,7 @@ useEffect(() => {
             sender_id: currentUserId,
             content: message,
             created_at: sentTime,
+            reply_to_id: replyingToMessage ? replyingToMessage.id : null,
           })
         });
 
@@ -325,6 +395,7 @@ useEffect(() => {
             content: rawMessage.content,
             created_at: new Date(rawMessage.created_at),
             sender_username: rawMessage.sender_username,
+            reply_to_id: rawMessage.reply_to_id,
           },
         ]);
 
@@ -346,13 +417,32 @@ useEffect(() => {
               const dateB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
               return dateB - dateA;
             });
+          
         });
 
     setMessage(''); // Очищаем инпут
+    setReplyingToMessage(null); // Сбрасываем состояние ответа
   } catch (err) {
     console.error("Ошибка отправки:", err);
   } finally {
     setSending(false);
+  }
+}}
+
+async function deleteMessage( messageId: string) {
+  try {
+    const res = await fetch("/api/deleteMessage", {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message_id: messageId,
+        currentUserId: currentUserId,
+      }),
+    });
+
+    if (!res.ok) throw new Error("Failed to delete");
+  } catch (error) {
+    console.error("Error deleting message:", error);
   }
 }
 
@@ -503,7 +593,7 @@ const refreshChatList = useCallback(async () => {
             </div>
           </div>
 
-        <NewTypeOfChatMessage messages={messages} currentUserId={currentUserId} peerLastReadAt={currentChat?.peerLastReadAt} />
+        <NewTypeOfChatMessage messages={messages} currentUserId={currentUserId} peerLastReadAt={currentChat?.peerLastReadAt} onDelete={deleteMessage} onEdit={startEdit} onReply={startReply} />
 
          {/* Input */}
 
@@ -523,13 +613,38 @@ const refreshChatList = useCallback(async () => {
             onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
             >
             {/* Поле ввода */}
+            {editingMessage && (
+              <div className="bg-blue-50 p-2 flex justify-between items-center text-xs border-l-4 border-blue-500">
+                <span>Редактирование: {editingMessage.content.substring(0, 20)}...</span>
+                <button onClick={() => { setEditingMessage(null); setMessage(""); }} className="text-red-500">
+                  Отмена
+                </button>
+              </div>
+            )}
             <div className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-5 py-2.5 flex items-center transition-all focus-within:border-blue-300 focus-within:bg-white shadow-sm">
+              {replyingToMessage && (
+                <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-t border-l-4 border-l-blue-500">
+                  <div className="flex flex-col overflow-hidden">
+                    <span className="text-[10px] font-bold text-blue-500">Ответ пользователю</span>
+                    <span className="text-xs text-gray-500 truncate">{replyingToMessage.content}</span>
+                  </div>
+                  <button onClick={() => setReplyingToMessage(null)} className="text-gray-400 hover:text-gray-600">
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
                 <input 
                 type="text"
                 value={message}
                 onChange={(e) => { setMessage(e.target.value); handleTyping(); }}
                 placeholder="Write a message..." 
                 className="w-full bg-transparent text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
                 />
             </div>
 
