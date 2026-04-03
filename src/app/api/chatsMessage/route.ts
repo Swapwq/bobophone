@@ -29,11 +29,11 @@ export async function GET(req: Request) {
     
         const senders = await prisma.public_users.findMany({
           where: { id: { in: senderIds }},
-          select: {id: true, username: true}
+          select: {id: true, username: true, name: true}
         })
     
         const result = messagesArray.map(msg => ({
-          ...msg, sender_username: senders.find(s => s.id === msg.sender_id)?.username || null
+          ...msg, sender_username: senders.find(s => s.id === msg.sender_id)?.username || null, sender_name: senders.find(s => s.id === msg.sender_id)?.name || null
         }));
 
     return NextResponse.json(result);

@@ -4,7 +4,7 @@ import { prisma } from "../../../../lib/prisma";
 export async function DELETE(req: Request) {
     try {
         const body = await req.json();
-        const { message_id, currentUserId } = body;
+        const { message_id, currentUserId, chat_id } = body;
 
         if (!message_id || !currentUserId) {
             return NextResponse.json({ error: "Missing fields" }, { status: 400 });
@@ -24,6 +24,19 @@ export async function DELETE(req: Request) {
 
         await prisma.message.delete({
             where: { id: message_id }
+        });
+
+        const newLastMessage = await prisma.message.findFirst({
+            where: { chat_id: chat_id },
+            orderBy: { created_at: 'desc' }
+        });
+
+        await prisma.chatmember.updateMany({
+            where: { chat_id: chat_id },
+            data: { 
+                last_message_text: newLastMessage ? newLastMessage.content : "Нет сообщений",
+                last_message_at: newLastMessage ? newLastMessage.created_at : null
+            }
         });
 
         return NextResponse.json({ message: "Deleted" });

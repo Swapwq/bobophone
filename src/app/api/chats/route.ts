@@ -17,42 +17,57 @@ export async function GET(req: Request) {
       chat_id: true,
       last_message_text: true, 
       last_message_at: true,
-      last_read_at: true 
+      last_read_at: true,
+      chat: {
+          select: {
+            type: true,
+            name: true
+          }
+        }
     },
-    orderBy: {
-      last_message_at: 'desc'
-    }
+    orderBy: { last_message_at: 'desc' }
   });
 
   // 2. Собираем уникальные ID собеседников
   const userIds = [...new Set(members.map(m => m.user_id).filter((id): id is string => !!id))];
 
-  // 3. Загружаем данные профилей этих пользователей
-  const users = await prisma.public_users.findMany({
+  // 3. Загружаем данные профилей (Тут всё верно было)
+  const usersData = await prisma.public_users.findMany({
     where: { id: { in: userIds } },
     select: { id: true, username: true, name: true, phone: true },
   });
 
-  // Создаем мапу для быстрого поиска: ID -> Объект пользователя
-  const userMap = new Map(users.map(u => [u.id, u]));
+  // --- ВОТ ТУТ БЫЛА ПОТЕРЯ ДАННЫХ ---
+  // Создаем мапу, чтобы сопоставить ID и данные юзера
+  const profilesMap = new Map(usersData.map(u => [u.id, u]));
 
-  // 4. Формируем финальный результат
-  const result = members.map(m => {
-    // Берем данные из мапы один раз
-    const userData = m.user_id ? userMap.get(m.user_id) : null;
+  const chatMap = new Map();
 
-    return {
-      user_id: m.user_id,
+  members.forEach((m: any) => {
+    if (chatMap.has(m.chat_id)) return;
+
+    const isGroup = m.chat?.type === 'group';
+    
+    // Ищем профиль в нашей загруженной мапе по ID
+    const profile: any = profilesMap.get(m.user_id);
+
+    chatMap.set(m.chat_id, {
       chat_id: m.chat_id,
-      // Используем userData для всех полей профиля
-      username: userData?.username || "Unknown",
-      name: userData?.name || "Not specified",
-      phone: userData?.phone || "Not specified",
+      user_id: m.user_id,
       last_message_text: m.last_message_text,
       last_message_at: m.last_message_at,
-      peerLastReadAt: m.last_read_at, 
-    };
+      last_read_at: m.last_read_at,
+      type: m.chat?.type || 'private',
+      
+      // ИСПОЛЬЗУЕМ profile ВМЕСТО m.public_users
+      name: isGroup 
+        ? (m.chat?.name || "Группа") 
+        : (profile?.name || profile?.username || "Пользователь"),
+      username: profile?.username || "",
+      phone: profile?.phone || "Скрыт",
+      full_name: profile?.name || profile?.username || "Не указано",
+    });
   });
 
-  return NextResponse.json(result);
+  return NextResponse.json(Array.from(chatMap.values()));
 }

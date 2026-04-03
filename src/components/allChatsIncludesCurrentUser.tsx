@@ -7,6 +7,7 @@ type ChatUser = {
   user_id: string;
   chat_id: string;
   username: string;
+  type: 'private' | 'group';
 };
 
 type ChatMessage = {
@@ -25,7 +26,7 @@ type MessageWithSender = {
 
 
 export default function AllChatsIncludesCurrentUser({ currentUserId }: { currentUserId: string }) {
-  const [usernames, setUsernames] = useState<{ user_id: string; chat_id: string; username: string }[]>([]);
+  const [usernames, setUsernames] = useState<{ user_id: string; chat_id: string; username: string, type: 'private' | 'group' }[]>([]);
    const [loadingMessages, setLoadingMessages] = useState(false);
    const [messages, setMessages] = useState<{ sender_id: string; content: string; created_at: Date; sender_username: string }[]>([]);
    const [message, setMessage] = useState("");
@@ -102,7 +103,7 @@ export default function AllChatsIncludesCurrentUser({ currentUserId }: { current
         <div className="flex justify-start">
             <div className="h-screen border-r-2 border-[#4D4D4D]">
                 <ul>
-                    {usernames.map((u, i) => <button key={u.chat_id} className={`flex items-center w-[300px] h-[45px] pl-[15px] hover:bg-[#3D3D3D] transition duration-200 cursor-pointer`} onClick={() => {setSelectedChatId(u.chat_id); loadMessages(u.chat_id)}} disabled={loadingMessages}>{u.username}</button>)}
+                    {usernames.map((u, i) => <button key={u.chat_id} className={`${u.type === 'group' ? 'bg-gradient-to-tr from-orange-400 to-red-500' : 'bg-gradient-to-tr from-blue-400 to-blue-600'}`} onClick={() => {setSelectedChatId(u.chat_id); loadMessages(u.chat_id)}} disabled={loadingMessages}>{u.username}</button>)}
                 </ul>
             </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { use, useCallback, useEffect } from 'react';
-import { Search, MessageSquare, User, Settings, Bell, Phone, Video, Send, Paperclip, ChevronRight, X } from 'lucide-react';
+import { Search, MessageSquare, User, Settings, Bell, Phone, Video, Send, Paperclip, ChevronRight, X, UserPlus, Users, User2, UserStar } from 'lucide-react';
 import { 
  Palette, Lock, 
   LogOut, Camera, Moon 
@@ -13,7 +13,7 @@ import NewTypeOfChatMessage from "@/components/NewTypeOfChatMessage";
 import { createClient } from '../../lib/supabase';
 import SearchSidebar from './searchSideBar';
 import LogoutAction from './signout';
-import { mark, s } from 'framer-motion/client';
+import { mark, pre, s } from 'framer-motion/client';
 import { markMessagesAsRead } from './markAsRead';
 import { channel } from 'diagnostics_channel';
 
@@ -24,6 +24,7 @@ type ChatUser = {
   chat_id: string;
   username: string;
   name: string;
+  type: 'private' | 'group';
   phone: string;
   last_message_text?: string | null;
   last_message_at?: string | Date | null;
@@ -31,7 +32,7 @@ type ChatUser = {
 
 export default function Messanger({ currentUserId }: { currentUserId: string }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [usernames, setUsernames] = useState<{ user_id: string; chat_id: string; username: string; name: string; phone: string; last_message_text?: string | null; last_message_at?: string | Date | null; peerLastReadAt?: string | Date | null }[]>([]);
+    const [usernames, setUsernames] = useState<{ user_id: string; chat_id: string; username: string; name: string; phone: string; last_message_text?: string | null; last_message_at?: string | Date | null; peerLastReadAt?: string | Date | null; type: 'private' | 'group' }[]>([]);
        const [loadingMessages, setLoadingMessages] = useState(false);
        const [messages, setMessages] = useState<any[]>([]);
        const [message, setMessage] = useState("");
@@ -43,6 +44,9 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
        const [isUserProfileOpen, setIsUserProfileOpen] = useState(false);
        const [editingMessage, setEditingMessage] = useState<any | null>(null);
        const [replyingToMessage, setReplyingToMessage] = useState<any | null>(null);
+       const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+       const [groupName, setGroupName] = useState("");
+       const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
        const [profile, setProfile] = useState({
             name: "Ivan Petrov",
             phone: "+(13) 356 7980",
@@ -53,6 +57,32 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
       const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
       let lastTypingTime = 0;
+
+      async function createGroup() {
+        if (!groupName|| selectedUsers.length === 0) return;
+
+        const res = await fetch("/api/createGroup", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userIds: selectedUsers,
+            groupName,
+            currentUserId,
+          }),
+        });
+
+        if (res.ok) {
+          const newChat = await res.json();
+          setSelectedChatId(newChat.chat_id);
+          refreshChatList();
+          setIsGroupModalOpen(false);
+        }
+      }
+
+      const truncateText = (text: string, maxLength: number = 160) => {
+        if (text.length <= maxLength) return text;
+        return text.slice(0, maxLength) + "...";
+      };
 
       function startEdit(message: any) {
           setEditingMessage(message);
@@ -206,16 +236,35 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
             (payload) => {
               const deletedId = payload.old.id;
 
-              setMessages((prev) => prev.filter(m => m.id !== deletedId));
+              setMessages((prev) => {
+                const updated = prev.filter(m => m.id !== deletedId);
+                
+                // Если удалили последнее сообщение — обновляем сайдбар
+                const newLast = updated[updated.length - 1];
+                setUsernames(chats => chats.map(c => 
+                  c.chat_id === selectedChatId 
+                    ? { ...c, last_message_text: newLast?.content || "Нет сообщений" } 
+                    : c
+                ));
+                
+                return updated;
+              });
             }
           )
           .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'message', filter: `chat_id=eq.${selectedChatId}` },
             (payload) => {
-              console.log('Message has been edited:', payload.new);
+              const updatedMsg = payload.new;
 
-              setMessages((prev) => 
-                prev.map((m) => (m.id === payload.new.id ? { ...m, ...payload.new, created_at: new Date(payload.new.created_at) } : m))
-              );
+              setMessages((prev) => {
+                const updated = prev.map(m => m.id === updatedMsg.id ? { ...m, ...updatedMsg } : m);
+                
+                if (updated[updated.length - 1]?.id === updatedMsg.id) {
+                  setUsernames(chats => chats.map(c => 
+                    c.chat_id === selectedChatId ? { ...c, last_message_text: updatedMsg.content } : c
+                  ));
+                }
+                return updated;
+              });
             }
           )
 
@@ -350,12 +399,27 @@ useEffect(() => {
               message_id: editingMessage.id,
               content: message,
               currentUserId: currentUserId,
+              chat_id: selectedChatId,
             }),
           });
 
           if(res.ok) {
             setEditingMessage(null);
             setMessage('');
+
+            setUsernames(prev => prev.map(chat => {
+              if (chat.chat_id === selectedChatId) {
+                const isLast = messages[messages.length - 1]?.id === editingMessage.id;
+
+                if (isLast) {
+                  return {
+                    ...chat,
+                    last_message_text: message,
+                  };
+                }
+              }
+              return chat;
+            }));
           } else {
             throw new Error("Failed to edit message");
           }
@@ -437,10 +501,27 @@ async function deleteMessage( messageId: string) {
       body: JSON.stringify({
         message_id: messageId,
         currentUserId: currentUserId,
+        chat_id: selectedChatId,
       }),
     });
 
     if (!res.ok) throw new Error("Failed to delete");
+
+    setUsernames(prev => prev.map(chat => {
+      if (chat.chat_id === selectedChatId) {
+
+        const remainingMessages = messages.filter(m => m.id !== messageId);
+        const lastMessage = remainingMessages[remainingMessages.length - 1];
+        return {
+          ...chat,
+          last_message_text: lastMessage ? lastMessage.content : "Нет сообщений",
+          last_message_at: lastMessage ? lastMessage.created_at : null,
+      };
+    }
+    return chat; 
+   }
+  ));
+
   } catch (error) {
     console.error("Error deleting message:", error);
   }
@@ -458,8 +539,7 @@ const refreshChatList = useCallback(async () => {
       username: currentChat?.username || 'Выберите чат',
       user_id: currentChat?.user_id || 'Не выбран чат',
     }
-
-  return (<>
+    return (<>
     <div className="flex h-screen bg-white overflow-hidden">
       {/* Левый сайдбар (Иконки) */}
       <div className="w-16 bg-blue-600 flex flex-col items-center py-6 space-y-8 text-white">
@@ -468,6 +548,17 @@ const refreshChatList = useCallback(async () => {
         <button className="text-white/60 hover:text-white cursor-pointer" onClick={() => setIsOpen(true)}>
           <Settings size={24} />
         </button>
+        <button 
+            onClick={() => setIsGroupModalOpen(true)}
+            className="text-white/60 hover:text-white hover:bg-white/10 p-2 rounded-xl transition-all cursor-pointer group relative"
+            title="Создать группу"
+          >
+            <UserPlus size={24} />
+            {/* Подсказка при наведении (опционально) */}
+            <span className="absolute left-full ml-4 px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">
+              Создать группу
+            </span>
+          </button>
         <div className="mt-auto pb-4 text-white/60 hover:text-white cursor-pointer"><Bell size={24} /></div>
       </div>
 
@@ -480,10 +571,8 @@ const refreshChatList = useCallback(async () => {
           onChatCreated={refreshChatList}
         />
         <div className="flex-1 overflow-y-auto bg-white border-r border-gray-100">
-          {/* ПРОВЕРКА: Если массив пустой или еще грузится */}
           {usernames.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-              {/* Иконка или просто эмодзи */}
               <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
                 <span className="text-2xl">🔍</span>
               </div>
@@ -491,8 +580,6 @@ const refreshChatList = useCallback(async () => {
               <p className="text-xs text-gray-500 mt-1 max-w-[180px]">
                 Найдите собеседника по поиску или подождите первого сообщения
               </p>
-              
-              {/* Кнопка-заглушка для будущего поиска */}
               <button className="mt-4 px-4 py-2 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 transition-colors">
                 Найти людей
               </button>
@@ -509,18 +596,15 @@ const refreshChatList = useCallback(async () => {
                   selectedChatId === chat.chat_id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
                 }`}
               >
-                {/* Аватарка (заглушка) */}
                 <div className='relative flex-shrink-0'>
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                  <div className={`w-12 h-12 rounded-full bg-gradient-to-tr from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-sm ${chat.type === 'group' ? 'bg-gradient-to-tr from-orange-400 to-red-500' : 'bg-gradient-to-tr from-blue-400 to-blue-600'}`}>
                     {chat.name?.[0]?.toUpperCase() || 'U'}
                   </div>
-
                   {onlineUsers.includes(chat.user_id) && (
                     <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full shadow-sm z-10"></span>
                   )}
                 </div>
 
-                {/* Инфо о чате */}
                 <div className="ml-4 flex-1 min-w-0">
                   <div className="flex justify-between items-baseline">
                     <h4 className="text-sm font-bold text-gray-900 truncate">
@@ -543,23 +627,27 @@ const refreshChatList = useCallback(async () => {
       {/* Окно чата */}
       <div className="flex-1 flex flex-col bg-[#f4f7f9]">
         {/* Header */}
-          <div className="h-16 bg-white border-b flex items-center justify-between px-6 shrink-0">
-            <div className="flex items-center">
-              <div 
-                  className="flex items-center cursor-pointer hover:bg-gray-50 p-1 rounded-xl transition-colors"
-                  onClick={() => setIsUserProfileOpen(true)}
-                >
-              {/* Аватарка собеседника с индикатором */}
+        <div className="h-16 bg-white border-b flex items-center justify-between px-6 shrink-0">
+          <div className="flex items-center">
+            <div 
+              className="flex items-center cursor-pointer hover:bg-gray-50 p-1 rounded-xl transition-colors"
+              onClick={() => {
+
+                if (currentChat?.type !== 'group') {
+                  setIsUserProfileOpen(true);
+                } else {
+                  // Здесь можно будет потом открыть инфо о группе, если захочешь
+                  console.log("Это группа, тут профиля юзера нет");
+              }
+            }}
+            >
               <div className="relative mr-3">
                 <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                  {/* Достаем первую букву ника или "U" если пусто */}
-                  {currentChat?.name ? currentChat.name[0].toUpperCase() : 'U'}
+                  {currentChat?.type === 'group' ? <Users size={20} /> : (currentChat?.name?.[0]?.toUpperCase() || 'U')}
                 </div>
-                
-                {/* Индикатор онлайн прямо на аватарке */}
-                {currentChat?.user_id && onlineUsers.includes(currentChat.user_id) && (
-                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
-                )}
+                {currentChat?.type !== 'group' && currentChat?.user_id && onlineUsers.includes(currentChat.user_id) && (
+                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+                  )}
               </div>
 
               <div>
@@ -568,325 +656,248 @@ const refreshChatList = useCallback(async () => {
                     {currentChat?.name || "Загрузка..."}
                   </h2>
                 </div>
-                {/* Текстовый статус под именем */}
-                {typingUser ? (
-                  <p className="text-[10px] text-blue-500 italic animate-pulse">
-                    {typingUser} печатает...
-                  </p>
-                ) : (
-                  <p className="text-[10px] font-medium transition-colors">
-                    {currentChat?.user_id && onlineUsers.includes(currentChat.user_id) ? (
-                      <span className="text-green-500">в сети</span>
+                {currentChat?.type === 'group' ? (
+                      <p className="text-[10px] text-gray-400 font-medium">Групповой чат</p>
                     ) : (
-                      <span className="text-gray-400">не в сети</span>
+                      typingUser ? (
+                        <p className="text-[10px] text-blue-500 italic animate-pulse">{typingUser} печатает...</p>
+                      ) : (
+                        <p className="text-[10px] font-medium transition-colors">
+                          {currentChat?.user_id && onlineUsers.includes(currentChat.user_id) 
+                            ? <span className="text-green-500">в сети</span> 
+                            : <span className="text-gray-400">не в сети</span>}
+                        </p>
+                      )
                     )}
-                  </p>
-                )}
               </div>
-            </div>
-            </div>
-
-            <div className="flex items-center gap-4 text-gray-400">
-              <Phone size={20} className="hover:text-blue-500 cursor-pointer transition-all active:scale-90" />
-              <Video size={20} className="hover:text-blue-500 cursor-pointer transition-all active:scale-90" />
-              <Search size={20} className="hover:text-blue-500 cursor-pointer transition-all active:scale-90" />
             </div>
           </div>
 
+          <div className="flex items-center gap-4 text-gray-400">
+            <Phone size={20} className="hover:text-blue-500 cursor-pointer transition-all active:scale-90" />
+            <Video size={20} className="hover:text-blue-500 cursor-pointer transition-all active:scale-90" />
+            <Search size={20} className="hover:text-blue-500 cursor-pointer transition-all active:scale-90" />
+          </div>
+        </div>
+
+        {/* Сообщения */}
         <NewTypeOfChatMessage messages={messages} currentUserId={currentUserId} peerLastReadAt={currentChat?.peerLastReadAt} onDelete={deleteMessage} onEdit={startEdit} onReply={startReply} />
 
-         {/* Input */}
-
-        {/* Input */}
-        {/* Блок ввода сообщения */}
-        <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0">
-        <div className="max-w-7xl mx-auto flex items-center gap-4">
-            
-            {/* Иконка скрепки (просто для визуала) */}
-            <button type="button" className="text-gray-400 hover:text-blue-500 transition-colors flex-shrink-0 p-1">
-            <Paperclip size={22} strokeWidth={1.5} />
-            </button>
-            
-            {/* Форма с твоей логикой */}
-            <form 
-            className="flex-1 flex items-center gap-4" 
-            onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
-            >
-            {/* Поле ввода */}
-            {editingMessage && (
-              <div className="bg-blue-50 p-2 flex justify-between items-center text-xs border-l-4 border-blue-500">
-                <span>Редактирование: {editingMessage.content.substring(0, 20)}...</span>
-                <button onClick={() => { setEditingMessage(null); setMessage(""); }} className="text-red-500">
-                  Отмена
-                </button>
-              </div>
-            )}
-            <div className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-5 py-2.5 flex items-center transition-all focus-within:border-blue-300 focus-within:bg-white shadow-sm">
-              {replyingToMessage && (
-                <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-t border-l-4 border-l-blue-500">
-                  <div className="flex flex-col overflow-hidden">
-                    <span className="text-[10px] font-bold text-blue-500">Ответ пользователю</span>
-                    <span className="text-xs text-gray-500 truncate">{replyingToMessage.content}</span>
-                  </div>
-                  <button onClick={() => setReplyingToMessage(null)} className="text-gray-400 hover:text-gray-600">
-                    <X size={16} />
-                  </button>
-                </div>
-              )}
-                <input 
-                type="text"
-                value={message}
-                onChange={(e) => { setMessage(e.target.value); handleTyping(); }}
-                placeholder="Write a message..." 
-                className="w-full bg-transparent text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                />
-            </div>
-
-            {/* Твоя кнопка отправки в новом стиле */}
-            <button 
-                type="submit" 
-                disabled={sending || !message.trim()}
-                className="bg-blue-500 hover:bg-blue-600 p-3 rounded-full text-white shadow-lg shadow-blue-100 transition-all active:scale-95 flex-shrink-0 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
-            >
-                <Send size={18} strokeWidth={2} />
-            </button>
-            </form>
-            
-        </div>
-        </div>
-      </div>
-    </div>
-    {isOpen && (
-        <div className='fixed inset-0 z-50 bg-black/50 flex items-center justify-center' onClick={() => setIsOpen(false)}>
-        <div className="min-h-screen flex items-center justify-center p-4 md:p-10 ">
-      <div className="bg-white w-full max-w-5xl h-[80vh] rounded-3xl shadow-2xl flex overflow-hidden border border-gray-200" onClick={(e) => e.stopPropagation()}>
-        
-        {/* Левая панель меню */}
-        <div className="w-1/3 border-r border-gray-100 bg-gray-50/50 flex flex-col">
-          <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-800">Settings</h1>
-          </div>
+        {/* Блок ввода сообщения с плашками */}
+        <div className="bg-white border-t border-gray-100 flex-shrink-0 w-full min-w-0">
           
-          <nav className="flex-1 px-4 space-y-2">
-            <SettingsItem icon={<User size={20} />} label="Account" active />
-            <SettingsItem icon={<Bell size={20} />} label="Notifications" />
-            <SettingsItem icon={<Palette size={20} />} label="Appearance" />
-            <SettingsItem icon={<Lock size={20} />} label="Privacy & Security" />
-          </nav>
+          {/* Плашка ОТВЕТА */}
+          {replyingToMessage && (
+            <div className="flex items-center justify-between px-6 py-2 bg-gray-50 border-l-4 border-l-blue-500 w-full">
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-bold text-blue-500 uppercase">Ответ пользователю</span>
+                <span className="text-xs text-gray-500 break-all">
+                  {truncateText(replyingToMessage.content, 160)}
+                </span>
+              </div>
+              <button onClick={() => setReplyingToMessage(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0 ml-4">
+                <X size={16} />
+              </button>
+            </div>
+          )}
 
-          <div className="p-6 mt-auto border-t border-gray-100">
-            <form action={LogoutAction}>
-            <button className="flex items-center gap-3 text-red-500 font-medium hover:bg-red-50 w-full p-3 rounded-xl transition-all cursor-pointer">
-              <LogOut size={20} />
-              Logout
-            </button>
-            </form>
-          </div>
-        </div>
+          {/* Плашка РЕДАКТИРОВАНИЯ */}
+          {editingMessage && (
+            <div className="flex items-center justify-between px-6 py-2 bg-blue-50 border-l-4 border-l-blue-500 w-full">
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-bold text-blue-600 uppercase">Редактирование</span>
+                <span className="text-xs text-gray-600 break-all">
+                  {truncateText(editingMessage.content, 160)}
+                </span>
+              </div>
+              <button 
+                onClick={() => { setEditingMessage(null); setMessage(""); }} 
+                className="text-gray-400 hover:text-red-500 flex-shrink-0 ml-4"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
 
-        {/* Правая панель с контентом (как на картинке) */}
-        <div className="flex-1 overflow-y-auto p-8 bg-white">
-          <div className="max-w-2xl">
-            {/* Профиль заголовок */}
-            <div className="flex items-center gap-6 mb-10">
-              <div className="relative">
-                <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center overflow-hidden border-4 border-white shadow-md">
-                  <img 
-                    src="https://api.dicebear.com/7.x/avataaars/svg?seed=Ivan" 
-                    alt="Profile" 
-                    className="w-full h-full object-cover"
+          {/* Основная строка ввода */}
+          <div className="p-4 w-full">
+            <div className="flex items-center gap-4 w-full">
+              <button type="button" className="text-gray-400 hover:text-blue-500 transition-colors flex-shrink-0 p-1">
+                <Paperclip size={22} strokeWidth={1.5} />
+              </button>
+              
+              <form className="flex-1 flex items-center gap-4 min-w-0" onSubmit={(e) => { e.preventDefault(); sendMessage(); }}>
+                <div className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-5 py-2.5 flex items-center transition-all focus-within:border-blue-300 focus-within:bg-white shadow-sm min-w-0">
+                  <input 
+                    type="text"
+                    value={message}
+                    onChange={(e) => { setMessage(e.target.value); handleTyping(); }}
+                    placeholder="Write a message..." 
+                    className="w-full bg-transparent text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
                   />
                 </div>
-                <button className="absolute bottom-0 right-0 bg-blue-500 p-2 rounded-full text-white border-2 border-white shadow-sm hover:bg-blue-600">
-                  <Camera size={16} />
-                </button>
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">{profile.name}</h2>
-                <p className="text-green-500 flex items-center gap-1 text-sm font-medium">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  Online Status
-                </p>
-              </div>
-            </div>
-            {/* Секция Account Info */}
-            <section className="mb-10">
-            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Account Info</h3>
-            <div className="space-y-6">
-                <InfoRow 
-                label="Name" 
-                value={profile.name} 
-                onChange={(val) => handleProfileChange('name', val)} 
-                />
-                <InfoRow 
-                label="Phone" 
-                value={profile.phone} 
-                onChange={(val) => handleProfileChange('phone', val)} 
-                />
-                <InfoRow 
-                label="Username" 
-                value={profile.username} 
-                onChange={(val) => handleProfileChange('username', val)} 
-                />
-                <InfoRow 
-                label="Status" 
-                value={profile.status} 
-                onChange={(val) => handleProfileChange('status', val)} 
-                />
                 <button 
-                onClick={saveProfileChanges}
-                disabled={sending}
-                className="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-2xl shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  type="submit" 
+                  disabled={sending || !message.trim()}
+                  className="bg-blue-500 hover:bg-blue-600 p-3 rounded-full text-white shadow-lg shadow-blue-100 transition-all active:scale-95 flex-shrink-0 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
                 >
-                {sending ? "Saving..." : "Save Changes"}
+                  <Send size={18} strokeWidth={2} />
                 </button>
+              </form>
             </div>
-            </section>
-
-            {/* Секция Appearance (как на картинке) */}
-            <section className="mb-10">
-              <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Appearance</h3>
-              <div className="flex gap-4 p-1 bg-gray-100 rounded-2xl w-fit">
-                <button className="px-6 py-2 bg-white rounded-xl shadow-sm text-sm font-bold">Light</button>
-                <button className="px-6 py-2 text-gray-500 hover:text-gray-900 text-sm font-bold flex items-center gap-2">
-                  <Moon size={16} />
-                  Dark Mode
-                </button>
-              </div>
-            </section>
-
-            {/* Account Management */}
-            <section>
-              <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Account Management</h3>
-              <div className="space-y-2">
-                <button className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Lock size={18} className="text-gray-400" />
-                    <span className="font-medium text-gray-700">Change Password</span>
-                  </div>
-                  <ChevronRight size={18} className="text-gray-400" />
-                </button>
-              </div>
-            </section>
           </div>
         </div>
       </div>
     </div>
-    </div>
-    )}
-    {isUserProfileOpen && currentChat && (
-        /* Overlay — затемнение и блюр */
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-300"
-          onClick={() => setIsUserProfileOpen(false)}
-        >
-          <div 
-            className="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300"
-            onClick={(e) => e.stopPropagation()} // Чтобы модалка не закрывалась при клике внутри
-          >
-            {/* Верхняя декоративная часть (Шапка карточки) */}
-            <div className="h-24 bg-gradient-to-r from-blue-500 to-indigo-600 relative">
-              <button 
-                onClick={() => setIsUserProfileOpen(false)}
-                className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors"
-              >
-                <Settings size={18} /> {/* Или крестик X */}
-              </button>
+
+    {/* Модалки настроек и профиля */}
+    {isOpen && (
+      <div className='fixed inset-0 z-50 bg-black/50 flex items-center justify-center' onClick={() => setIsOpen(false)}>
+        <div className="min-h-screen flex items-center justify-center p-4 md:p-10 ">
+          <div className="bg-white w-full max-w-5xl h-[80vh] rounded-3xl shadow-2xl flex overflow-hidden border border-gray-200" onClick={(e) => e.stopPropagation()}>
+            <div className="w-1/3 border-r border-gray-100 bg-gray-50/50 flex flex-col">
+              <div className="p-6"><h1 className="text-2xl font-bold text-gray-800">Settings</h1></div>
+              <nav className="flex-1 px-4 space-y-2">
+                <SettingsItem icon={<User size={20} />} label="Account" active />
+                <SettingsItem icon={<Bell size={20} />} label="Notifications" />
+                <SettingsItem icon={<Palette size={20} />} label="Appearance" />
+                <SettingsItem icon={<Lock size={20} />} label="Privacy & Security" />
+              </nav>
+              <div className="p-6 mt-auto border-t border-gray-100">
+                <form action={LogoutAction}>
+                  <button className="flex items-center gap-3 text-red-500 font-medium hover:bg-red-50 w-full p-3 rounded-xl transition-all cursor-pointer">
+                    <LogOut size={20} /> Logout
+                  </button>
+                </form>
+              </div>
             </div>
-
-            {/* Основной контент */}
-            <div className="px-8 pb-8 -mt-12 flex flex-col items-center">
-              {/* Аватарка с рамкой */}
-              <div className="relative">
-                <div className="w-24 h-24 bg-white rounded-3xl p-1 shadow-xl">
-                  <div className="w-full h-full bg-blue-100 rounded-[22px] flex items-center justify-center text-blue-600 text-3xl font-bold">
-                    {currentChat.username[0].toUpperCase()}
-                  </div>
-                </div>
-                {/* Индикатор онлайн */}
-                {onlineUsers.includes(currentChat.user_id) && (
-                  <span className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-4 border-white rounded-full"></span>
-                )}
-              </div>
-
-              {/* Имя и статус */}
-              <div className="mt-4 text-center">
-                <h2 className="text-xl font-bold text-gray-900">{currentChat.name}</h2>
-                <p className="text-sm font-medium text-gray-400 mt-1">
-                  {onlineUsers.includes(currentChat.user_id) ? 'В сети' : 'Был(а) недавно'}
-                </p>
-              </div>
-
-              {/* Инфо-блок */}
-
-
-              <div className="w-full mt-8 space-y-3">
-
-                <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-2xl">
-                  <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
-                    <User size={18} />
+            <div className="flex-1 overflow-y-auto p-8 bg-white">
+              <div className="max-w-2xl">
+                <div className="flex items-center gap-6 mb-10">
+                  <div className="relative">
+                    <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center overflow-hidden border-4 border-white shadow-md">
+                      <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Ivan" alt="Profile" className="w-full h-full object-cover" />
+                    </div>
+                    <button className="absolute bottom-0 right-0 bg-blue-500 p-2 rounded-full text-white border-2 border-white shadow-sm hover:bg-blue-600"><Camera size={16} /></button>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase text-gray-400 font-bold">Full Name</p>
-                    <p className="text-sm font-semibold text-gray-800">
-                      {currentChat.name || "Not specified"}
-                    </p>
+                    <h2 className="text-2xl font-bold text-gray-900">{profile.name}</h2>
+                    <p className="text-green-500 flex items-center gap-1 text-sm font-medium"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> Online Status</p>
                   </div>
                 </div>
-
-                {/* Блок с Телефоном */}
-                <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-2xl">
-                  <div className="p-2 bg-green-100 text-green-600 rounded-xl">
-                    <Phone size={18} />
+                <section className="mb-10">
+                  <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Account Info</h3>
+                  <div className="space-y-6">
+                    <InfoRow label="Name" value={profile.name} onChange={(val) => handleProfileChange('name', val)} />
+                    <InfoRow label="Phone" value={profile.phone} onChange={(val) => handleProfileChange('phone', val)} />
+                    <InfoRow label="Username" value={profile.username} onChange={(val) => handleProfileChange('username', val)} />
+                    <InfoRow label="Status" value={profile.status} onChange={(val) => handleProfileChange('status', val)} />
+                    <button onClick={saveProfileChanges} disabled={sending} className="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-2xl shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
+                      {sending ? "Saving..." : "Save Changes"}
+                    </button>
                   </div>
-                  <div>
-                    <p className="text-[10px] uppercase text-gray-400 font-bold">Phone Number</p>
-                    <p className="text-sm font-semibold text-gray-800">
-                      {currentChat.phone || "Hidden"}
-                    </p>
+                </section>
+                <section className="mb-10">
+                  <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Appearance</h3>
+                  <div className="flex gap-4 p-1 bg-gray-100 rounded-2xl w-fit">
+                    <button className="px-6 py-2 bg-white rounded-xl shadow-sm text-sm font-bold">Light</button>
+                    <button className="px-6 py-2 text-gray-500 hover:text-gray-900 text-sm font-bold flex items-center gap-2"><Moon size={16} /> Dark Mode</button>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-2xl">
-                  <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
-                    <User size={18} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase text-gray-400 font-bold">Username</p>
-                    <p className="text-sm font-semibold text-gray-800">@{currentChat.username.toLowerCase()}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-2xl">
-                  <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl">
-                    <Lock size={18} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] uppercase text-gray-400 font-bold">User ID</p>
-                    <p className="text-[10px] font-mono text-gray-500 truncate">{currentChat.user_id}</p>
-                  </div>
-                </div>
+                </section>
               </div>
-
-              {/* Кнопка действия */}
-              <button 
-                onClick={() => setIsUserProfileOpen(false)}
-                className="mt-8 w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 transition-all active:scale-95"
-              >
-                Написать сообщение
-              </button>
             </div>
           </div>
         </div>
-      )}
+      </div>
+    )}
+    {isUserProfileOpen && currentChat && currentChat.type !== 'group' && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-300" onClick={() => {
+        setIsUserProfileOpen(false)
+        }}>
+        <div className="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
+          <div className="h-24 bg-gradient-to-r from-blue-500 to-indigo-600 relative">
+            <button onClick={() => setIsUserProfileOpen(false)} className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors"><Settings size={18} /></button>
+          </div>
+          <div className="px-8 pb-8 -mt-12 flex flex-col items-center">
+            <div className="relative">
+              <div className="w-24 h-24 bg-white rounded-3xl p-1 shadow-xl">
+                <div className="w-full h-full bg-blue-100 rounded-[22px] flex items-center justify-center text-blue-600 text-3xl font-bold">{currentChat.name[0].toUpperCase()}</div>
+              </div>
+              {onlineUsers.includes(currentChat.user_id) && <span className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-4 border-white rounded-full"></span>}
+            </div>
+            <div className="mt-4 text-center">
+              <h2 className="text-xl font-bold text-gray-900">{currentChat.name}</h2>
+              <p className="text-sm font-medium text-gray-400 mt-1">{onlineUsers.includes(currentChat.user_id) ? 'В сети' : 'Был(а) недавно'}</p>
+            </div>
+            <div className="w-full mt-8 space-y-3">
+              <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-2xl">
+                <div className="p-2 bg-blue-100 text-blue-600 rounded-xl"><User size={18} /></div>
+                <div><p className="text-[10px] uppercase text-gray-400 font-bold">Full Name</p><p className="text-sm font-semibold text-gray-800">{currentChat.name || "Not specified"}</p></div>
+              </div>
+              <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-2xl">
+                <div className="p-2 bg-green-100 text-green-600 rounded-xl"><Phone size={18} /></div>
+                <div><p className="text-[10px] uppercase text-gray-400 font-bold">Phone Number</p><p className="text-sm font-semibold text-gray-800">{currentChat.phone || "Hidden"}</p></div>
+              </div>
+              <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-2xl">
+                <div className="p-2 bg-purple-100 text-purple-600 rounded-xl"><MessageSquare size={18} /></div>
+                <div><p className="text-[10px] uppercase text-gray-400 font-bold">Username</p><p className="text-sm font-semibold text-gray-800">{currentChat.username || "Not specified"}</p></div>
+              </div>
+            </div>
+            <button onClick={() => setIsUserProfileOpen(false)} className="mt-8 w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 transition-all active:scale-95">Написать сообщение</button>
+          </div>
+        </div>
+      </div>
+    )}
+    {isGroupModalOpen && (
+      <div className="fixed inset-0 z-[110] bg-black/50 flex items-center justify-center p-4">
+        <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl">
+          <h2 className="text-xl font-bold mb-4">Создать группу</h2>
+          
+          <input 
+            type="text" 
+            placeholder="Название группы..." 
+            className="w-full p-3 bg-gray-50 border rounded-2xl mb-4 outline-none focus:border-blue-500"
+            value={groupName}
+            onChange={(e) => setGroupName(e.target.value)}
+          />
+
+          <div className="max-h-60 overflow-y-auto mb-6 space-y-2">
+            <p className="text-[10px] font-bold text-gray-400 uppercase ml-2">Выберите участников</p>
+            {usernames.map(user => (
+              <label key={user.user_id} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-2xl cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={selectedUsers.includes(user.user_id)}
+                  onChange={(e) => {
+                    if (e.target.checked) setSelectedUsers([...selectedUsers, user.user_id]);
+                    else setSelectedUsers(selectedUsers.filter(id => id !== user.user_id));
+                  }}
+                  className="w-5 h-5 rounded-full border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium">{user.name}</span>
+              </label>
+            ))}
+          </div>
+
+          <div className="flex gap-3">
+            <button onClick={() => setIsGroupModalOpen(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-2xl transition-all">
+              Отмена
+            </button>
+            <button onClick={createGroup} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-2xl shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">
+              Создать
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   </>);
-};  
+};
 
 
 function SettingsItem({ icon, label, active = false }: { icon: React.ReactNode, label: string, active?: boolean }) {

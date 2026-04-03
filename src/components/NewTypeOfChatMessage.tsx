@@ -1,4 +1,5 @@
 import { Check, Pencil, Trash2, Reply } from "lucide-react";
+import React from "react";
 
 type ChatMessage = {
     id: string;
@@ -6,6 +7,7 @@ type ChatMessage = {
     content: string;
     created_at: Date;
     sender_username: string;
+    sender_name?: string | null;
     is_edited: boolean;
     reply_to_id: string | null; 
     replies: string
@@ -21,18 +23,61 @@ type ChatMessagesProps = {
 };
 
 export default function ChatMessages({ messages, currentUserId, peerLastReadAt, onDelete, onEdit, onReply }: ChatMessagesProps) {
+    
+    const formatDateSeparator = (date: Date) => { // Меняем string на Date
+        const now = new Date();
+        
+        
+        if (date.toDateString() === now.toDateString()) {
+            return "Сегодня";
+        }
+        
+        const yesterday = new Date();
+        yesterday.setDate(now.getDate() - 1);
+        if (date.toDateString() === yesterday.toDateString()) {
+            return "Вчера";
+        }
+
+        return date.toLocaleDateString('ru-RU', { 
+            day: 'numeric', 
+            month: 'long' 
+        });
+        };
+
     return (
         <div className="flex-1 p-4 md:p-6 space-y-4 overflow-y-auto h-full bg-[#f4f7f9]">
-            {messages.map((m) => {
-                const date = new Date(m.created_at);
-                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            {messages.map((m, index) => {
+                const currentDateObj = new Date(m.created_at);
+                const currentDate = currentDateObj.toDateString();
+                const prevMsg = index > 0 ? messages[index - 1] : null;
+                const prevDate = index > 0 
+                    ? new Date(messages[index - 1].created_at).toDateString() 
+                    : null;
+                const showDateSeparator = currentDate !== prevDate;
+                const timeStr = currentDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
                 
                 // Поиск сообщения, на которое ответили
                 const repliedMessage = m.reply_to_id ? messages.find(msg => msg.id === m.reply_to_id) : null;
                 const isMe = m.sender_id === currentUserId;
                 const isRead = peerLastReadAt && new Date(m.created_at) <= new Date(peerLastReadAt);
+                const showName = !isMe && (
+                    index === 0 || 
+                    showDateSeparator || 
+                    prevMsg?.sender_id !== m.sender_id
+                );
 
                 return (
+                    <React.Fragment key={m.id}>
+                        {/* Разделитель дат */}
+                        {showDateSeparator && (
+                            <div className="flex justify-center my-6">
+                            <div className="bg-gray-200/50 text-gray-500 text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-sm">
+                                {formatDateSeparator(currentDateObj)}
+                            </div>
+                            </div>
+                        )}
+
                     <div key={m.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
                         <div className={`
                                 /* Ограничиваем ширину самого пузырька */
@@ -47,6 +92,12 @@ export default function ChatMessages({ messages, currentUserId, peerLastReadAt, 
                                     ? "bg-blue-500 text-white rounded-2xl rounded-tr-none" 
                                     : "bg-white text-gray-800 rounded-2xl rounded-tl-none"
                                 }`}>
+
+                                {showName && (
+                                    <div className="text-[12px] font-bold mb-1 text-blue-600">
+                                        {m.sender_name || "Пользователь"}
+                                    </div>
+                                )}
 
                             {/* 1. БЛОК ЦИТАТЫ */}
                             {repliedMessage && (
@@ -133,6 +184,7 @@ export default function ChatMessages({ messages, currentUserId, peerLastReadAt, 
                             </div>
                         </div>
                     </div>
+                    </React.Fragment>
                 );
             })}
         </div>

@@ -3,7 +3,7 @@ import { prisma } from "../../../../lib/prisma";
 
 export async function PUT(req: Request) {
     try {
-        const { message_id, content, currentUserId } = await req.json();
+        const { message_id, content, currentUserId, chat_id } = await req.json();
 
         const existingMessage = await prisma.message.findUnique({
             where: { id: message_id },
@@ -24,6 +24,17 @@ export async function PUT(req: Request) {
                     content: true,
                     is_edited: true,
                 }
+        });
+
+        await prisma.message.update({
+            where: { id: message_id },
+            data: { content: content, is_edited: true }
+        });
+
+            // ОБЯЗАТЕЛЬНО: Обновляем превью у ВСЕХ участников этого чата
+        await prisma.chatmember.updateMany({
+            where: { chat_id: chat_id },
+            data: { last_message_text: content }
         });
 
         return NextResponse.json(updatedMessage);
