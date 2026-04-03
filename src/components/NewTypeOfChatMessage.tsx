@@ -40,7 +40,6 @@ export default function ChatMessages({ messages, currentUserId, peerLastReadAt, 
                                 p-3 shadow-sm text-sm relative group transition-all
                                 
                                 break-all           /* Разрывает строку В ЛЮБОМ месте */
-                                overflow-hidden
 
                                 p-3 shadow-sm text-sm relative group transition-all
                                 

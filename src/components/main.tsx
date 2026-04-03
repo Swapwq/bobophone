@@ -512,7 +512,7 @@ const refreshChatList = useCallback(async () => {
                 {/* Аватарка (заглушка) */}
                 <div className='relative flex-shrink-0'>
                   <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                    {chat.username?.[0]?.toUpperCase() || 'U'}
+                    {chat.name?.[0]?.toUpperCase() || 'U'}
                   </div>
 
                   {onlineUsers.includes(chat.user_id) && (
@@ -524,7 +524,7 @@ const refreshChatList = useCallback(async () => {
                 <div className="ml-4 flex-1 min-w-0">
                   <div className="flex justify-between items-baseline">
                     <h4 className="text-sm font-bold text-gray-900 truncate">
-                      {chat.username || 'Unknown User'}
+                      {chat.name || 'Unknown User'}
                     </h4>
                     <span className="text-[10px] text-gray-400">
                       {chat.last_message_at ? new Date(chat.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
