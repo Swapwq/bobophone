@@ -1,7 +1,7 @@
 "use client";
 
 import React, { use, useCallback, useEffect } from 'react';
-import { Search, MessageSquare, User, Settings, Bell, Phone, Video, Send, Paperclip, ChevronRight, X, UserPlus, Users, User2, UserStar } from 'lucide-react';
+import { Search, MessageSquare, User, Settings, Bell, Phone, Video, Send, Paperclip, ChevronRight, X, UserPlus, Users, User2, UserStar, Plus, ChevronLeft, Save, Smile, AtSign, ShieldCheck, Check } from 'lucide-react';
 import { 
  Palette, Lock, 
   LogOut, Camera, Moon 
@@ -341,33 +341,35 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
         setProfile(prev => ({ ...prev, [field]: value }));
         };
 
-        async function saveProfileChanges() {
+        const saveProfileChanges = async () => {
+        setSending(true);
         try {
-            const res = await fetch("/api/changeProfile", {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: currentUserId,
-                    name: profile.name,
-                    phone: profile.phone,
-                    username: profile.username,
-                    status: profile.status
-                }),
-            });
+          const response = await fetch('/api/changeProfile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: currentUserId, // Твой ID из контекста/стейта
+              name: profile.name,
+              phone: profile.phone,
+              username: profile.username,
+              status: profile.status
+            }),
+          });
 
-            if (!res.ok) {
-                alert("Profile updated successfully!");
-            } else {
-                throw new Error("Failed to update profile");
-            }
-        
-
+          if (response.ok) {
+            console.log("Profile updated successfully!");
+          } else {
+            const errorData = await response.json();
+            console.error("Ошибка API:", errorData);
+            throw new Error("Failed");
+          }
         } catch (error) {
-            console.error("Error saving profile changes:", error);
+          console.error(error);
+          alert("Ошибка при сохранении");
         } finally {
-            setSending(false);
+          setSending(false);
         }
-    }
+      };
     
       // 1. Эффект для первичной загрузки данных (Чаты + Профиль)
 useEffect(() => {
@@ -575,29 +577,48 @@ async function deleteMessage( messageId: string) {
     }
     return (<>
     <div className="flex h-screen bg-white overflow-hidden">
-      {/* Левый сайдбар (Иконки) */}
-      <div className="w-16 bg-blue-600 flex flex-col items-center py-6 space-y-8 text-white">
-        <div className="bg-white/20 p-2 rounded-xl"><MessageSquare size={24} /></div>
-        <div className="text-white/60 hover:text-white cursor-pointer"><User size={24} /></div>
-        <button className="text-white/60 hover:text-white cursor-pointer" onClick={() => setIsOpen(true)}>
+            {/* Левый сайдбар (Иконки) */}
+            {/* Синяя панель */}
+      <div className="flex w-16 flex-shrink-0 bg-blue-600 flex-col items-center py-6 space-y-8 text-white z-20">
+        
+        {/* Иконка сообщений */}
+        <div className="bg-white/20 p-2 rounded-xl cursor-pointer hover:bg-white/30 transition-all">
+          <MessageSquare size={24} />
+        </div>
+
+        {/* Иконка профиля */}
+        <div className="text-white/60 hover:text-white cursor-pointer transition-all">
+          <User size={24} />
+        </div>
+
+        {/* Настройки */}
+        <button 
+          className="text-white/60 hover:text-white cursor-pointer transition-all" 
+          onClick={() => setIsOpen(true)}
+        >
           <Settings size={24} />
         </button>
+
+        {/* Кнопка создания группы (та самая, что вылезла) */}
         <button 
-            onClick={() => setIsGroupModalOpen(true)}
-            className="text-white/60 hover:text-white hover:bg-white/10 p-2 rounded-xl transition-all cursor-pointer group relative"
-            title="Создать группу"
-          >
-            <UserPlus size={24} />
-            {/* Подсказка при наведении (опционально) */}
-            <span className="absolute left-full ml-4 px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">
-              Создать группу
-            </span>
-          </button>
-        <div className="mt-auto pb-4 text-white/60 hover:text-white cursor-pointer"><Bell size={24} /></div>
+          onClick={() => setIsGroupModalOpen(true)}
+          className="text-white/60 hover:text-white hover:bg-white/10 p-2 rounded-xl transition-all cursor-pointer group relative flex items-center justify-center"
+        >
+          <UserPlus size={24} />
+          {/* Подсказку скрываем на мобилках через hidden md:block */}
+          <span className="hidden md:block absolute left-full ml-4 px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">
+            Создать группу
+          </span>
+        </button>
+
+        {/* Колокольчик вниз */}
+        <div className="mt-auto pb-4 text-white/60 hover:text-white cursor-pointer transition-all">
+          <Bell size={24} />
+        </div>
       </div>
 
       {/* Список чатов (как в Telegram) */}
-      <div className="w-80 border-r border-gray-200 flex flex-col">
+      <div className={`${selectedChatId ? 'hidden md:flex' : 'flex'} w-[calc(100vw-4rem)] md:w-80 flex-shrink-0 border-r border-gray-200 flex flex-col`}>
         <SearchSidebar 
           searchQuery={searchQuery} 
           setSearchQuery={setSearchQuery} 
@@ -659,9 +680,13 @@ async function deleteMessage( messageId: string) {
       </div>
 
       {/* Окно чата */}
-      <div className="flex-1 flex flex-col bg-[#f4f7f9]">
+      <div className={`${selectedChatId ? 'flex' : 'hidden'} md:flex flex-1 flex flex-col bg-[#f4f7f9]`}>
         {/* Header */}
         <div className="h-16 bg-white border-b flex items-center justify-between px-6 shrink-0">
+          <button
+          onClick={() => setSelectedChatId('')}
+          className='md:hidden text-blue-500 hover:bg-blue-50 rounded-full'
+        ><ChevronLeft size={24}/></button>
           <div className="flex items-center">
             <div 
               className="flex items-center cursor-pointer hover:bg-gray-50 p-1 rounded-xl transition-colors"
@@ -791,65 +816,104 @@ async function deleteMessage( messageId: string) {
     </div>
 
     {/* Модалки настроек и профиля */}
-    {isOpen && (
-      <div className='fixed inset-0 z-50 bg-black/50 flex items-center justify-center' onClick={() => setIsOpen(false)}>
-        <div className="min-h-screen flex items-center justify-center p-4 md:p-10 ">
-          <div className="bg-white w-full max-w-5xl h-[80vh] rounded-3xl shadow-2xl flex overflow-hidden border border-gray-200" onClick={(e) => e.stopPropagation()}>
-            <div className="w-1/3 border-r border-gray-100 bg-gray-50/50 flex flex-col">
-              <div className="p-6"><h1 className="text-2xl font-bold text-gray-800">Settings</h1></div>
-              <nav className="flex-1 px-4 space-y-2">
-                <SettingsItem icon={<User size={20} />} label="Account" active />
-                <SettingsItem icon={<Bell size={20} />} label="Notifications" />
-                <SettingsItem icon={<Palette size={20} />} label="Appearance" />
-                <SettingsItem icon={<Lock size={20} />} label="Privacy & Security" />
-              </nav>
-              <div className="p-6 mt-auto border-t border-gray-100">
-                <form action={LogoutAction}>
-                  <button className="flex items-center gap-3 text-red-500 font-medium hover:bg-red-50 w-full p-3 rounded-xl transition-all cursor-pointer">
-                    <LogOut size={20} /> Logout
-                  </button>
-                </form>
+        {isOpen && (
+          <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center" onClick={() => setIsOpen(false)}>
+            <div 
+              className="w-full h-full md:h-[85vh] md:max-w-4xl bg-slate-50 md:rounded-[40px] shadow-2xl flex flex-col md:flex-row overflow-hidden border border-white/20 animate-in fade-in zoom-in-95 duration-300" 
+              onClick={(e) => e.stopPropagation()}
+            >
+              
+              {/* ЛЕВАЯ ПАНЕЛЬ (Десктоп) */}
+              <div className="hidden md:flex w-72 bg-white border-r border-slate-200 flex-col p-8">
+                <h1 className="text-3xl font-black text-slate-800 mb-10 tracking-tight">Settings</h1>
+                <nav className="space-y-2 flex-1">
+                  <div className="flex items-center gap-3 p-4 bg-blue-50 text-blue-600 rounded-2xl font-bold"><User size={20} /> Account</div>
+                  <div className="flex items-center gap-3 p-4 text-slate-400 hover:bg-slate-50 rounded-2xl font-bold transition-all cursor-pointer"><Bell size={20} /> Notifications</div>
+                  <div className="flex items-center gap-3 p-4 text-slate-400 hover:bg-slate-50 rounded-2xl font-bold transition-all cursor-pointer"><Palette size={20} /> Appearance</div>
+                </nav>
+                <button onClick={LogoutAction} className="flex items-center gap-3 text-red-500 font-bold p-4 hover:bg-red-50 rounded-2xl transition-all">
+                  <LogOut size={20} /> Logout
+                </button>
               </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-8 bg-white">
-              <div className="max-w-2xl">
-                <div className="flex items-center gap-6 mb-10">
-                  <div className="relative">
-                    <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center overflow-hidden border-4 border-white shadow-md">
-                      <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Ivan" alt="Profile" className="w-full h-full object-cover" />
+
+              {/* МОБИЛЬНАЯ ШАПКА */}
+              <div className="md:hidden flex items-center justify-between px-6 py-4 bg-white border-b border-slate-100 shrink-0">
+                <button onClick={() => setIsOpen(false)} className="text-blue-600 font-bold text-lg active:opacity-50">Done</button>
+                <h1 className="text-lg font-black text-slate-800">Settings</h1>
+                <div className="w-10" /> 
+              </div>
+
+              {/* ОСНОВНОЙ КОНТЕНТ */}
+              <div className="flex-1 overflow-y-auto bg-slate-50">
+                <div className="max-w-xl mx-auto p-6 md:p-12 space-y-8">
+                  
+                  {/* СЕКЦИЯ ПРОФИЛЯ */}
+                  <div className="flex flex-col items-center">
+                    <div className="w-32 h-32 rounded-full p-1 bg-gradient-to-tr from-blue-600 to-cyan-400 shadow-xl shadow-blue-200">
+                      <div className="w-full h-full bg-white rounded-full overflow-hidden border-4 border-white">
+                        <img 
+                          src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.name}`} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover" 
+                        />
+                      </div>
                     </div>
-                    <button className="absolute bottom-0 right-0 bg-blue-500 p-2 rounded-full text-white border-2 border-white shadow-sm hover:bg-blue-600"><Camera size={16} /></button>
+                    <h2 className="mt-6 text-3xl font-black text-slate-800 tracking-tight">{profile.name}</h2>
+                    <div className="mt-2 px-4 py-1 bg-green-100 text-green-600 text-xs font-black uppercase tracking-widest rounded-full flex items-center gap-2">
+                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> Online
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">{profile.name}</h2>
-                    <p className="text-green-500 flex items-center gap-1 text-sm font-medium"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> Online Status</p>
+
+                  {/* ГРУППА ПОЛЕЙ ВВОДА (Твоя логика InfoRow теперь здесь) */}
+                  <div className="bg-white rounded-[32px] p-2 shadow-sm border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                    <InfoInput 
+                        icon={<User size={18} />} 
+                        label="Full Name" 
+                        value={profile.name} 
+                        onChange={(val: string) => handleProfileChange('name', val)} 
+                    />
+                    <InfoInput 
+                        icon={<Phone size={18} />} 
+                        label="Phone Number" 
+                        value={profile.phone} 
+                        onChange={(val: string) => handleProfileChange('phone', val)} 
+                    />
+                    <InfoInput 
+                        icon={<AtSign size={18} />} 
+                        label="Username" 
+                        value={profile.username} 
+                        onChange={(val: string) => handleProfileChange('username', val)} 
+                    />
+                    <InfoInput 
+                        icon={<Smile size={18} />} 
+                        label="Current Status" 
+                        value={profile.status} 
+                        onChange={(val: string) => handleProfileChange('status', val)} 
+                    />
                   </div>
+
+                  {/* КНОПКА СОХРАНЕНИЯ */}
+                  <button 
+                    onClick={saveProfileChanges}
+                    disabled={sending}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-[24px] shadow-2xl shadow-blue-200 transition-all active:scale-[0.97] disabled:opacity-50 flex items-center justify-center gap-3 text-lg"
+                  >
+                    {sending ? <span className="animate-pulse">Saving...</span> : <><Save size={22} /> Save Changes</>}
+                  </button>
+
+                  {/* МОБИЛЬНЫЙ ВЫХОД */}
+                  <button 
+                    onClick={LogoutAction}
+                    className="md:hidden w-full py-5 text-red-500 font-black flex items-center justify-center gap-2 active:bg-red-50 rounded-[24px] transition-colors"
+                  >
+                    <LogOut size={20} /> Logout Account
+                  </button>
+                  
                 </div>
-                <section className="mb-10">
-                  <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Account Info</h3>
-                  <div className="space-y-6">
-                    <InfoRow label="Name" value={profile.name} onChange={(val) => handleProfileChange('name', val)} />
-                    <InfoRow label="Phone" value={profile.phone} onChange={(val) => handleProfileChange('phone', val)} />
-                    <InfoRow label="Username" value={profile.username} onChange={(val) => handleProfileChange('username', val)} />
-                    <InfoRow label="Status" value={profile.status} onChange={(val) => handleProfileChange('status', val)} />
-                    <button onClick={saveProfileChanges} disabled={sending} className="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-2xl shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
-                      {sending ? "Saving..." : "Save Changes"}
-                    </button>
-                  </div>
-                </section>
-                <section className="mb-10">
-                  <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Appearance</h3>
-                  <div className="flex gap-4 p-1 bg-gray-100 rounded-2xl w-fit">
-                    <button className="px-6 py-2 bg-white rounded-xl shadow-sm text-sm font-bold">Light</button>
-                    <button className="px-6 py-2 text-gray-500 hover:text-gray-900 text-sm font-bold flex items-center gap-2"><Moon size={16} /> Dark Mode</button>
-                  </div>
-                </section>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-    )}
+        )}
     {isUserProfileOpen && currentChat && currentChat.type !== 'group' && (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-300" onClick={() => {
         setIsUserProfileOpen(false)
@@ -889,52 +953,103 @@ async function deleteMessage( messageId: string) {
       </div>
     )}
     {isGroupModalOpen && (
-      <div className="fixed inset-0 z-[110] bg-black/50 flex items-center justify-center p-4">
-        <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl">
-          <h2 className="text-xl font-bold mb-4">Создать группу</h2>
-          
+  <div className="fixed inset-0 z-[110] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsGroupModalOpen(false)}>
+    <div 
+      className="
+        w-full max-w-md bg-white 
+        rounded-[32px] shadow-2xl 
+        flex flex-col 
+        animate-in fade-in zoom-in-95 duration-300
+        /* ЖЕСТКАЯ ВЫСОТА ТУТ */
+        h-[700px] 
+        max-h-[90vh]
+      " 
+      onClick={(e) => e.stopPropagation()}
+    >
+      
+      {/* Хендл сверху */}
+      <div className="w-12 h-1.5 bg-slate-100 rounded-full mx-auto mt-4 shrink-0" />
+
+      {/* ШАПКА */}
+      <div className="px-8 py-6 flex items-center justify-between shrink-0">
+        <h2 className="text-2xl font-black text-slate-800 tracking-tight">Создать группу</h2>
+        <button onClick={() => setIsGroupModalOpen(false)} className="p-2 bg-slate-50 rounded-full text-slate-400 hover:text-red-500 transition-colors">
+          <X size={20} />
+        </button>
+      </div>
+
+      {/* КОНТЕНТ */}
+      <div className="flex-1 flex flex-col overflow-hidden px-8 space-y-6">
+        
+        {/* ИНПУТ НАЗВАНИЯ */}
+        <div className="shrink-0">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Название</p>
           <input 
             type="text" 
-            placeholder="Название группы..." 
-            className="w-full p-3 bg-gray-50 border rounded-2xl mb-4 outline-none focus:border-blue-500"
+            placeholder="Как назовем?" 
+            className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold text-slate-800 placeholder:text-slate-300 focus:ring-2 focus:ring-blue-100 outline-none appearance-none"
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
           />
+        </div>
 
-          <div className="max-h-60 overflow-y-auto mb-6 space-y-2">
-            <p className="text-[10px] font-bold text-gray-400 uppercase ml-2">Выберите участников</p>
-           {usernames
-                .filter((user, index, self) => 
-                  index === self.findIndex((t) => t.user_id === user.user_id)
-                )
-                .map(user => (
-                  <label key={user.user_id} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-2xl cursor-pointer">
+        {/* СПИСОК УЧАСТНИКОВ */}
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3 shrink-0">Участники</p>
+          
+          <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+            {usernames
+              .filter((user, index, self) => 
+                index === self.findIndex((t) => t.user_id === user.user_id)
+              )
+              .map(user => (
+                <label key={user.user_id} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl cursor-pointer group transition-all">
+                  <div className="relative flex items-center justify-center shrink-0">
                     <input 
                       type="checkbox" 
+                      className="peer appearance-none w-6 h-6 border-2 border-slate-200 rounded-lg checked:bg-blue-600 checked:border-blue-600 outline-none transition-all"
                       checked={selectedUsers.includes(user.user_id)}
                       onChange={(e) => {
                         if (e.target.checked) setSelectedUsers([...selectedUsers, user.user_id]);
                         else setSelectedUsers(selectedUsers.filter(id => id !== user.user_id));
                       }}
-                      className="w-5 h-5 rounded-full border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="text-sm font-medium">{user.name}</span>
-                  </label>
-                ))
-              }
-          </div>
+                    <Check size={14} className="absolute text-white opacity-0 peer-checked:opacity-100 pointer-events-none" strokeWidth={4} />
+                  </div>
 
-          <div className="flex gap-3">
-            <button onClick={() => setIsGroupModalOpen(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-2xl transition-all">
-              Отмена
-            </button>
-            <button onClick={createGroup} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-2xl shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">
-              Создать
-            </button>
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 border border-slate-100 shrink-0 shadow-sm">
+                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`} alt="" className="w-full h-full" />
+                  </div>
+
+                  <span className="text-base font-bold text-slate-700 truncate flex-1 group-hover:text-blue-600 transition-colors">{user.name}</span>
+                </label>
+              ))
+            }
+            {/* Если участников вообще нет, покажем заглушку, чтобы не было пустоты */}
+            {usernames.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-10 text-slate-300">
+                <UserPlus size={40} strokeWidth={1} />
+                <p className="text-sm font-medium mt-2">Нет доступных контактов</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
-    )}
+
+      {/* КНОПКА СОЗДАНИЯ */}
+      <div className="p-8 pt-4 shrink-0">
+        <button 
+          onClick={createGroup} 
+          disabled={!groupName || selectedUsers.length === 0}
+          className="w-full bg-blue-600 text-white font-black py-5 rounded-[22px] shadow-xl shadow-blue-100 active:scale-[0.97] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+        >
+          <Plus size={20} strokeWidth={3} />
+          Создать группу
+        </button>
+      </div>
+    </div>
+  </div>
+)}
   </>);
 };
 
@@ -950,24 +1065,21 @@ function SettingsItem({ icon, label, active = false }: { icon: React.ReactNode, 
   );
 }
 
-function InfoRow({ 
-  label, 
-  value, 
-  onChange 
-}: { 
-  label: string; 
-  value: string; 
-  onChange: (val: string) => void
-}) {
+function InfoInput({ icon, label, value, onChange }: { icon: any, label: string, value: string, onChange: (v: string) => void }) {
   return (
-    <div className="flex flex-col border-b border-gray-50 pb-3 transition-all focus-within:border-blue-400">
-      <span className="text-xs text-gray-400 mb-1 font-medium">{label}</span>
-      <input 
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="text-gray-800 font-semibold bg-transparent outline-none border-none p-0 focus:ring-0 w-full placeholder:text-gray-300 transition-colors"
-        placeholder={`Enter ${label.toLowerCase()}...`}
-      />
+    <div className="flex items-center gap-4 px-6 py-4 transition-colors hover:bg-slate-50/50 group">
+      <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 shrink-0 group-focus-within:bg-blue-600 group-focus-within:text-white transition-all">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">{label}</p>
+        <input 
+          value={value || ""} 
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full bg-transparent border-none p-0 focus:ring-0 text-slate-800 font-bold text-base placeholder:text-slate-200 appearance-none outline-none focus:outline-none focus:ring-0 focus:border-none"
+          placeholder={`Enter ${label.toLowerCase()}...`}
+        />
+      </div>
     </div>
   );
 }
