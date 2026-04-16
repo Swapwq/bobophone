@@ -84,6 +84,15 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
         return text.slice(0, maxLength) + "...";
       };
 
+      const refreshChatList = useCallback(async () => {
+      if (!currentUserId) return;
+      const res = await fetch(`/api/chats?currentUserId=${currentUserId}`);
+      const data = await res.json();
+      
+      // ВАЖНО: Мы просто сетим новые данные, не добавляя их к старым
+      setUsernames(data); 
+    }, [currentUserId]);
+
       function startEdit(message: any) {
           setEditingMessage(message);
           setMessage(message.content);
@@ -164,13 +173,45 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
       }, [currentUserId, profile.username]);
 
       useEffect(() => {
-        if (selectedChatId && currentUserId) {
-          markMessagesAsRead(currentUserId, selectedChatId);
-      }
-      }, [selectedChatId, messages.length]);
+            if (selectedChatId && currentUserId) {
+              markMessagesAsRead(currentUserId, selectedChatId);
+          }
+          }, [selectedChatId, messages.length]);
+
+          useEffect(() => {
+      if (!currentUserId) return;
+
+      // Слушаем появление новых записей в chatmember, где user_id = наш ID
+      const channel = supabase
+        .channel('global-chat-notifications')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'chatmember',
+            filter: `user_id=eq.${currentUserId}`,
+          },
+          async (payload) => {
+            console.log("Вас добавили в новый чат!", payload);
+            
+            // Когда нас добавили в чат, просто заново запрашиваем список чатов с сервера
+            await refreshChatList();
+            
+            // Опционально: можно проиграть звук уведомления
+            PlaySound();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }, [currentUserId, refreshChatList]);
 
       useEffect(() => {
         if (!selectedChatId || !currentUserId) return;
+        
 
         const channel = supabase.channel(`chat-${selectedChatId}`);
 
@@ -526,15 +567,6 @@ async function deleteMessage( messageId: string) {
     console.error("Error deleting message:", error);
   }
 }
-
-    const refreshChatList = useCallback(async () => {
-      if (!currentUserId) return;
-      const res = await fetch(`/api/chats?currentUserId=${currentUserId}`);
-      const data = await res.json();
-      
-      // ВАЖНО: Мы просто сетим новые данные, не добавляя их к старым
-      setUsernames(data); 
-    }, [currentUserId]);
 
     const currentChat = usernames.find(u => u.chat_id === selectedChatId);
     const currentChatInfo = {
