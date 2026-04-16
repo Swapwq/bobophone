@@ -101,15 +101,19 @@ export default function ChatMessages({ messages, currentUserId, peerLastReadAt, 
 
                             {/* 1. БЛОК ЦИТАТЫ */}
                             {repliedMessage && (
-                                <div className={`mb-2 p-2 border-l-2 rounded-r-lg text-[11px] block cursor-default
+                                <div className={`mb-2 p-2 border-l-2 rounded-r-lg text-[11px] cursor-default 
+                                    min-w-0 max-w-full overflow-hidden flex flex-col {/* Добавили min-w-0 и overflow-hidden */}
                                     ${isMe 
-                                        ? "border-white/70 bg-white/10 text-white"  // Стили для ТВОЕГО (синего) сообщения
-                                        : "border-blue-300 bg-black/5 text-gray-800" // Стили для ЧУЖОГО (белого) сообщения
+                                        ? "border-white/70 bg-white/10 text-white" 
+                                        : "border-blue-300 bg-black/5 text-gray-800"
                                     }`}>
-                                    <p className={`font-bold truncate ${isMe ? "text-white" : "text-blue-400"}`}>
+                                    
+                                    <p className={`font-bold truncate w-full ${isMe ? "text-white" : "text-blue-400"}`}>
                                         {repliedMessage.sender_username || "Пользователь"}
                                     </p>
-                                    <p className={`truncate opacity-80 ${isMe ? "text-white" : "text-inherit"}`}>
+                                    
+                                    <p className={`opacity-80 break-words line-clamp-2 leading-tight ${isMe ? "text-white" : "text-inherit"}`}>
+                                        {/* Заменили truncate на line-clamp-2 для красоты или оставили break-words */}
                                         {repliedMessage.content}
                                     </p>
                                 </div>
