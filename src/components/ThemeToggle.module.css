@@ -1,0 +1,121 @@
+.theme__icon {
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  overflow: hidden;
+  position: relative;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  outline: none;
+}
+
+/* The Sun/Moon core */
+.theme__icon > :nth-child(1) {
+  width: 14px;
+  height: 14px;
+  border-radius: 24px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgb(255, 204, 0);
+  transition: width .4s, height .4s, border .4s, background-color .4s;
+  z-index: 10;
+}
+
+/* Dark state for the core */
+.dark.theme__icon > :nth-child(1) {
+  width: 24px;
+  height: 24px;
+  background-color: rgb(245, 245, 247);
+}
+
+/* Rays container */
+.theme__icon > :nth-child(2) {
+  width: 24px;
+  height: 24px;
+  border-radius: 24px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: transform .4s, opacity .4s;
+}
+
+/* Dark state for rays - rotate and hide */
+.dark.theme__icon > :nth-child(2) {
+  transform: translate(-50%, -50%) rotate(-45deg) scale(.8);
+  opacity: 0;
+}
+
+/* Individual Rays */
+.theme__icon > :nth-child(2) > :nth-child(1) {
+  display: block;
+  width: 2px;
+  height: 24px;
+  border-radius: 2px;
+  position: relative;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgb(255, 204, 0);
+}
+
+.theme__icon > :nth-child(2) > :nth-child(2) {
+  display: block;
+  width: 24px;
+  height: 2px;
+  border-radius: 2px;
+  position: relative;
+  top: -54%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgb(255, 204, 0);
+}
+
+.theme__icon > :nth-child(2) > :nth-child(3) {
+  display: block;
+  width: 24px;
+  height: 2px;
+  border-radius: 2px;
+  position: relative;
+  top: -60%;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  background-color: rgb(255, 204, 0);
+}
+
+.theme__icon > :nth-child(2) > :nth-child(4) {
+  display: block;
+  width: 24px;
+  height: 2px;
+  border-radius: 2px;
+  position: relative;
+  top: -70%;
+  left: 50%;
+  transform: translateX(-50%) rotate(-45deg);
+  background-color: rgb(255, 204, 0);
+}
+
+/* The Moon mask */
+.theme__icon > :nth-child(3) {
+  width: 20px;
+  height: 20px;
+  border-radius: 24px;
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
+  background-color: var(--theme-mask-bg);
+  transition: top .4s, left .4s;
+  transition-delay: .1s;
+  z-index: 20;
+}
+
+/* Dark state for the mask - move it over the core */
+.dark.theme__icon > :nth-child(3) {
+  top: 35%;
+  left: 40%;
+}

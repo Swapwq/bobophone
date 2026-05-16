@@ -50,13 +50,18 @@ export default function Page() {
     }
   }
 
+  const [loadingTheme, setLoadingTheme] = useState<'blue' | 'dark' | 'green' | 'purple'>('blue');
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('bobophone-theme') as any;
+    if (savedTheme) setLoadingTheme(savedTheme);
+  }, []);
+
   // Показываем загрузку, пока проверяем сессию
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        
+      <div className={`flex items-center justify-center h-screen transition-colors duration-500 ${loadingTheme === 'dark' ? 'bg-[#0e1621] dark' : 'bg-white'}`}>
         <Loader />
-
       </div>
     );
   }
