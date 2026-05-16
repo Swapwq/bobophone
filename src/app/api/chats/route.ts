@@ -29,7 +29,8 @@ export async function GET(req: Request) {
               select: {
                 name: true,
                 username: true,
-                phone: true
+                phone: true,
+                avatar_url: true,
               }
             }
           }
@@ -58,7 +59,8 @@ export async function GET(req: Request) {
           ? (m.chat?.name || "Групповой чат") 
           : (profile?.name || profile?.username || "Пользователь"),
         username: profile?.username || "",
-        phone: profile?.phone || "Скрыт"
+        phone: profile?.phone || "Скрыт",
+        avatar_url: profile?.avatar_url || null
       };
     });
 

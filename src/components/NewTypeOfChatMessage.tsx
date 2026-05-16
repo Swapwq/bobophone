@@ -1,5 +1,5 @@
 import { Check, Pencil, Trash2, Reply } from "lucide-react";
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 type ChatMessage = {
     id: string;
@@ -24,6 +24,15 @@ type ChatMessagesProps = {
 
 export default function ChatMessages({ messages, currentUserId, peerLastReadAt, onDelete, onEdit, onReply }: ChatMessagesProps) {
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Автопрокрутка вниз при изменении сообщений
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [messages]);
+    
     
     const formatDateSeparator = (date: Date) => { // Меняем string на Date
         const now = new Date();
@@ -46,7 +55,10 @@ export default function ChatMessages({ messages, currentUserId, peerLastReadAt, 
         };
 
     return (
-        <div className="flex-1 p-4 md:p-6 space-y-4 overflow-y-auto h-full bg-[#f4f7f9]">
+        <div 
+            ref={scrollRef}
+            className="flex-1 p-4 md:p-6 space-y-4 overflow-y-auto h-full bg-[#f4f7f9] scroll-smooth"
+        >
             {messages.map((m, index) => {
                 const currentDateObj = new Date(m.created_at);
                 const currentDate = currentDateObj.toDateString();
@@ -109,7 +121,7 @@ export default function ChatMessages({ messages, currentUserId, peerLastReadAt, 
 
                                 {/* --- КНОПКИ ДЛЯ ПК (md:flex) --- */}
                                 <div className={`absolute top-1/2 -translate-y-1/2 hidden md:group-hover:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all z-20
-                                    ${isMe ? "right-full mr-2" : "left-full ml-2"}`}>
+                                    ${isMe ? "right-full pr-2" : "left-full pl-2"}`}>
                                     <button onClick={(e) => { e.stopPropagation(); onReply(m); }} className="p-1.5 bg-white border rounded-full text-gray-400 hover:text-blue-500"><Reply size={14}/></button>
                                     {isMe && (
                                         <>

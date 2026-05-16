@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "../../lib/supabase";
 import Loader from "@/components/Loader";
 import Messanger from "../components/main";
@@ -7,18 +8,23 @@ import Messanger from "../components/main";
 export default function Page() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const supabase = createClient();
+  const router = useRouter();
 
   useEffect(() => {
     async function loadUser() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user?.id) {
         setCurrentUserId(user.id);
-        loadUsername(user.id);
+        await loadUsername(user.id);
+      } else {
+        router.push('/login');
       }
+      setIsLoading(false);
     }
     loadUser();
-  }, []);
+  }, [router, supabase.auth]);
 
   async function loadUsername(userId: string) {
     try {
@@ -44,8 +50,8 @@ export default function Page() {
     }
   }
 
-  // Показываем загрузку, если нет userId
-  if (!currentUserId) {
+  // Показываем загрузку, пока проверяем сессию
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         

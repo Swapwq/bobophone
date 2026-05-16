@@ -32,8 +32,9 @@ type ChatUser = {
 
 export default function Messanger({ currentUserId }: { currentUserId: string }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [usernames, setUsernames] = useState<{ user_id: string; chat_id: string; username: string; name: string; phone: string; last_message_text?: string | null; last_message_at?: string | Date | null; peerLastReadAt?: string | Date | null; type: 'private' | 'group' }[]>([]);
+    const [usernames, setUsernames] = useState<{ user_id: string; chat_id: string; username: string; name: string; phone: string; last_message_text?: string | null; last_message_at?: string | Date | null; peerLastReadAt?: string | Date | null; type: 'private' | 'group'; avatar_url?: string | null }[]>([]);
        const [loadingMessages, setLoadingMessages] = useState(false);
+       const [isChatsLoading, setIsChatsLoading] = useState(true);
        const [messages, setMessages] = useState<any[]>([]);
        const [message, setMessage] = useState("");
        const [sending, setSending] = useState(false);
@@ -51,7 +52,8 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
             name: "Ivan Petrov",
             phone: "+(13) 356 7980",
             username: "@ivanp",
-            status: "Available"
+            status: "Available",
+            avatarUrl: ""
             });
 
       const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -86,11 +88,14 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
 
       const refreshChatList = useCallback(async () => {
       if (!currentUserId) return;
-      const res = await fetch(`/api/chats?currentUserId=${currentUserId}`);
-      const data = await res.json();
-      
-      // ВАЖНО: Мы просто сетим новые данные, не добавляя их к старым
-      setUsernames(data); 
+      setIsChatsLoading(true);
+      try {
+        const res = await fetch(`/api/chats?currentUserId=${currentUserId}`);
+        const data = await res.json();
+        setUsernames(data); 
+      } finally {
+        setIsChatsLoading(false);
+      }
     }, [currentUserId]);
 
       function startEdit(message: any) {
@@ -352,7 +357,8 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
               name: profile.name,
               phone: profile.phone,
               username: profile.username,
-              status: profile.status
+              status: profile.status,
+              avatar_url: profile.avatarUrl
             }),
           });
 
@@ -370,11 +376,60 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
           setSending(false);
         }
       };
+
+      const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !currentUserId) return;
+    
+        setSending(true);
+        try {
+          // 1. Получаем signed URL
+          const res = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileName: file.name, fileType: file.type }),
+          });
+          
+          if (!res.ok) throw new Error("Failed to get signed URL");
+          
+          const { signedUrl, publicUrl } = await res.json();
+    
+          // 2. Загружаем файл напрямую в R2
+          const uploadRes = await fetch(signedUrl, {
+            method: 'PUT',
+            body: file,
+            headers: { 'Content-Type': file.type },
+          });
+          
+          if (!uploadRes.ok) throw new Error("Failed to upload to R2");
+    
+          // 3. Обновляем локальный стейт
+          setProfile(prev => ({ ...prev, avatarUrl: publicUrl }));
+    
+          // 4. Сохраняем в БД сразу
+          await fetch('/api/changeProfile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: currentUserId,
+              avatar_url: publicUrl,
+            }),
+          });
+    
+          console.log("Avatar uploaded and saved!");
+        } catch (err) {
+          console.error("Avatar upload error:", err);
+          alert("Ошибка при загрузке аватара");
+        } finally {
+          setSending(false);
+        }
+      };
     
       // 1. Эффект для первичной загрузки данных (Чаты + Профиль)
-useEffect(() => {
+  useEffect(() => {
   async function loadInitialData() {
     if (!currentUserId) return;
+    setIsChatsLoading(true);
 
     try {
       // 1. Загружаем список чатов
@@ -403,12 +458,15 @@ useEffect(() => {
           name: profileData.name || 'No name',
           phone: profileData.phone || 'No phone',
           username: profileData.username ? `@${profileData.username}` : 'No username',
-          status: profileData.status || 'No status'
+          status: profileData.status || 'No status',
+          avatarUrl: profileData.avatar_url || ""
         });
       }
     } catch (err) {
       console.error("Ошибка при загрузке данных:", err);
       setLoadingMessages(false);
+    } finally {
+      setIsChatsLoading(false);
     }
   }
 
@@ -626,7 +684,19 @@ async function deleteMessage( messageId: string) {
           onChatCreated={refreshChatList}
         />
         <div className="flex-1 overflow-y-auto bg-white border-r border-gray-100">
-          {usernames.length === 0 ? (
+          {isChatsLoading ? (
+            <div className="flex flex-col p-4 gap-6">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="flex flex-row gap-3">
+                  <div className="animate-pulse bg-gray-200 w-12 h-12 rounded-full flex-shrink-0"></div>
+                  <div className="flex flex-col gap-2 flex-1">
+                    <div className="animate-pulse bg-gray-200 w-1/3 h-4 rounded-full"></div>
+                    <div className="animate-pulse bg-gray-200 w-2/3 h-3 rounded-full"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : usernames.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full p-6 text-center">
               <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
                 <span className="text-2xl">🔍</span>
@@ -652,9 +722,13 @@ async function deleteMessage( messageId: string) {
                 }`}
               >
                 <div className='relative flex-shrink-0'>
-                  <div className={`w-12 h-12 rounded-full bg-gradient-to-tr from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-sm ${chat.type === 'group' ? 'bg-gradient-to-tr from-orange-400 to-red-500' : 'bg-gradient-to-tr from-blue-400 to-blue-600'}`}>
-                    {chat.name?.[0]?.toUpperCase() || 'U'}
-                  </div>
+                  {chat.avatar_url ? (
+                    <img src={chat.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover shadow-sm" />
+                  ) : (
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm ${chat.type === 'group' ? 'bg-gradient-to-tr from-orange-400 to-red-500' : 'bg-gradient-to-tr from-blue-400 to-blue-600'}`}>
+                      {chat.name?.[0]?.toUpperCase() || 'U'}
+                    </div>
+                  )}
                   {onlineUsers.includes(chat.user_id) && (
                     <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full shadow-sm z-10"></span>
                   )}
@@ -701,9 +775,13 @@ async function deleteMessage( messageId: string) {
             }}
             >
               <div className="relative mr-3">
-                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                  {currentChat?.type === 'group' ? <Users size={20} /> : (currentChat?.name?.[0]?.toUpperCase() || 'U')}
-                </div>
+                {currentChat?.avatar_url ? (
+                  <img src={currentChat.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover shadow-sm" />
+                ) : (
+                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                    {currentChat?.type === 'group' ? <Users size={20} /> : (currentChat?.name?.[0]?.toUpperCase() || 'U')}
+                  </div>
+                )}
                 {currentChat?.type !== 'group' && currentChat?.user_id && onlineUsers.includes(currentChat.user_id) && (
                     <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
                   )}
@@ -847,16 +925,37 @@ async function deleteMessage( messageId: string) {
               <div className="flex-1 overflow-y-auto bg-slate-50">
                 <div className="max-w-xl mx-auto p-6 md:p-12 space-y-8">
                   
-                  {/* СЕКЦИЯ ПРОФИЛЯ */}
-                  <div className="flex flex-col items-center">
-                    <div className="w-32 h-32 rounded-full p-1 bg-gradient-to-tr from-blue-600 to-cyan-400 shadow-xl shadow-blue-200">
-                      <div className="w-full h-full bg-white rounded-full overflow-hidden border-4 border-white">
-                        <img 
-                          src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.name}`} 
-                          alt="Profile" 
-                          className="w-full h-full object-cover" 
-                        />
+                   {/* СЕКЦИЯ ПРОФИЛЯ */}
+                   <div className="flex flex-col items-center">
+                    <div className="relative group/avatar">
+                      <div className="w-32 h-32 rounded-full p-1 bg-gradient-to-tr from-blue-600 to-cyan-400 shadow-xl shadow-blue-200">
+                        <div className="w-full h-full bg-white rounded-full overflow-hidden border-4 border-white relative">
+                          {profile.avatarUrl ? (
+                            <img 
+                              src={profile.avatarUrl} 
+                              alt="Profile" 
+                              className="w-full h-full object-cover" 
+                            />
+                          ) : (
+                            <img 
+                              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.name}`} 
+                              alt="Profile" 
+                              className="w-full h-full object-cover" 
+                            />
+                          )}
+                          
+                          {/* Оверлей загрузки */}
+                          <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity cursor-pointer">
+                            <Camera className="text-white" size={32} />
+                            <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} />
+                          </label>
+                        </div>
                       </div>
+                      {sending && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded-full">
+                          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                      )}
                     </div>
                     <h2 className="mt-6 text-3xl font-black text-slate-800 tracking-tight">{profile.name}</h2>
                     <div className="mt-2 px-4 py-1 bg-green-100 text-green-600 text-xs font-black uppercase tracking-widest rounded-full flex items-center gap-2">
@@ -925,7 +1024,11 @@ async function deleteMessage( messageId: string) {
           <div className="px-8 pb-8 -mt-12 flex flex-col items-center">
             <div className="relative">
               <div className="w-24 h-24 bg-white rounded-3xl p-1 shadow-xl">
-                <div className="w-full h-full bg-blue-100 rounded-[22px] flex items-center justify-center text-blue-600 text-3xl font-bold">{currentChat.name[0].toUpperCase()}</div>
+                {currentChat.avatar_url ? (
+                  <img src={currentChat.avatar_url} alt="" className="w-full h-full rounded-[22px] object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-blue-100 rounded-[22px] flex items-center justify-center text-blue-600 text-3xl font-bold">{currentChat.name[0].toUpperCase()}</div>
+                )}
               </div>
               {onlineUsers.includes(currentChat.user_id) && <span className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-4 border-white rounded-full"></span>}
             </div>
