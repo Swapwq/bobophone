@@ -50,7 +50,7 @@ export async function GET(req: Request) {
 
       uniqueChats[m.chat_id] = {
         chat_id: m.chat_id,
-        user_id: m.user_id,
+        user_id: isGroup ? null : m.user_id,
         last_message_text: m.last_message_text,
         last_message_at: m.last_message_at,
         type: m.chat?.type || 'private',
@@ -58,9 +58,9 @@ export async function GET(req: Request) {
         name: isGroup 
           ? (m.chat?.name || "Групповой чат") 
           : (profile?.name || profile?.username || "Пользователь"),
-        username: profile?.username || "",
-        phone: profile?.phone || "Скрыт",
-        avatar_url: profile?.avatar_url || null
+        username: isGroup ? "" : (profile?.username || ""),
+        phone: isGroup ? "Скрыт" : (profile?.phone || "Скрыт"),
+        avatar_url: isGroup ? null : (profile?.avatar_url || null)
       };
     });
 

@@ -40,6 +40,8 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
     const savedTheme = localStorage.getItem('bobophone-theme');
     if (savedTheme === 'dark') {
       setTheme('dark');
+    } else if (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setTheme('dark');
     }
     setMounted(true);
   }, []);
@@ -1032,7 +1034,7 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
               <div className={`flex items-center gap-3 p-4 rounded-2xl font-bold transition-all cursor-pointer ${isDark ? 'text-slate-500 hover:bg-white/5 hover:text-slate-300' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}><Bell size={20} /> Notifications</div>
               <div className={`flex items-center gap-3 p-4 rounded-2xl font-bold transition-all cursor-pointer ${isDark ? 'text-slate-500 hover:bg-white/5 hover:text-slate-300' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}><Palette size={20} /> Appearance</div>
             </nav>
-            <button onClick={LogoutAction} className={`flex items-center gap-3 text-red-500 font-bold p-4 rounded-2xl transition-all ${isDark ? 'hover:bg-red-500/10' : 'hover:bg-red-50'}`}>
+            <button onClick={LogoutAction} className={`flex items-center gap-3 text-red-500 font-bold p-4 rounded-2xl transition-all cursor-pointer ${isDark ? 'hover:bg-red-500/10' : 'hover:bg-red-50'}`}>
               <LogOut size={20} /> Logout
             </button>
           </div>
@@ -1122,7 +1124,7 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
               <button
                 onClick={saveProfileChanges}
                 disabled={sending}
-                className={`w-full text-white font-black py-5 rounded-[24px] shadow-2xl transition-all active:scale-[0.97] disabled:opacity-50 flex items-center justify-center gap-3 text-lg ${theme === 'dark' ? 'bg-slate-800 shadow-none' : 'bg-blue-600 shadow-blue-200'}`}
+                className={`w-full text-white font-black py-5 rounded-[24px] shadow-2xl transition-all active:scale-[0.97] disabled:opacity-50 flex items-center justify-center gap-3 text-lg cursor-pointer ${theme === 'dark' ? 'bg-blue-600 hover:bg-blue-500 shadow-none' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'}`}
 
               >
                 {sending ? <span className="animate-pulse">Saving...</span> : <><Save size={22} /> Save Changes</>}
@@ -1145,7 +1147,7 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-300" onClick={() => {
         setIsUserProfileOpen(false)
       }}>
-        <div className={`w-full max-sm rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 transition-colors ${isDark ? 'bg-[#17212b] border border-white/5' : 'bg-white'}`} onClick={(e) => e.stopPropagation()}>
+        <div className={`w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 transition-colors ${isDark ? 'bg-[#17212b] border border-white/5' : 'bg-white'}`} onClick={(e) => e.stopPropagation()}>
           <div className="h-24 bg-gradient-to-r from-blue-500 to-indigo-600 relative">
             <button onClick={() => setIsUserProfileOpen(false)} className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors"><Settings size={18} /></button>
           </div>
