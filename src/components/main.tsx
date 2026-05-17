@@ -79,6 +79,7 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
   });
 
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const profileCacheRef = React.useRef<Record<string, { username: string; name: string }>>({});
 
   let lastTypingTime = 0;
   const isDark = theme === 'dark';
@@ -213,6 +214,16 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
   useEffect(() => {
     if (selectedChatId && currentUserId) {
       markMessagesAsRead(currentUserId, selectedChatId);
+      
+      // Отправляем Broadcast другим участникам, что мы прочитали сообщения
+      supabase.channel(`chat-${selectedChatId}`).send({
+        type: 'broadcast',
+        event: 'read',
+        payload: {
+          user_id: currentUserId,
+          last_read_at: new Date().toISOString()
+        }
+      });
     }
   }, [selectedChatId, messages.length]);
 
@@ -262,12 +273,12 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
           table: 'message',
           filter: `chat_id=eq.${selectedChatId}`,
         },
-        (payload) => {
+        async (payload) => {
           const newMessage = payload.new;
           if (payload.new.sender_id !== currentUserId) {
             setUsernames(prev => prev.map(chat =>
               chat.chat_id === selectedChatId
-                ? { ...chat, peerLastReadAt: payload.new.last_read_at }
+                ? { ...chat, peerLastReadAt: payload.new.created_at }
                 : chat
             ));
           }
@@ -277,6 +288,28 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
             PlaySound();
           }
 
+          // Получаем имя и юзернейм отправителя
+          let senderUsername = 'Пользователь';
+          let senderName = 'Пользователь';
+
+          if (profileCacheRef.current[newMessage.sender_id]) {
+            const cached = profileCacheRef.current[newMessage.sender_id];
+            senderUsername = cached.username;
+            senderName = cached.name;
+          } else {
+            try {
+              const res = await fetch(`/api/usernames?userId=${newMessage.sender_id}`);
+              if (res.ok) {
+                const data = await res.json();
+                senderUsername = data.username || 'No username';
+                senderName = data.name || 'Пользователь';
+                profileCacheRef.current[newMessage.sender_id] = { username: senderUsername, name: senderName };
+              }
+            } catch (err) {
+              console.error("Ошибка при получении профиля отправителя:", err);
+            }
+          }
+
           setMessages((prev) => {
             // Если сообщение уже есть в списке (добавлено локально), 
             // обновляем его данными из БД (там уже точно есть ID)
@@ -284,6 +317,8 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
               return prev.map(m => m.id === newMessage.id ? {
                 ...m,
                 ...newMessage,
+                sender_username: senderUsername,
+                sender_name: senderName,
                 created_at: new Date(newMessage.created_at),
                 reply_to_id: newMessage.reply_to_id // Явно прописываем
               } : m);
@@ -292,6 +327,8 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
             // Если это чужое сообщение:
             return [...prev, {
               ...newMessage,
+              sender_username: senderUsername,
+              sender_name: senderName,
               created_at: new Date(newMessage.created_at),
               reply_to_id: newMessage.reply_to_id // Явно прописываем
             }];
@@ -364,6 +401,18 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
           typingTimeoutRef.current = null;
         }, 3000);
 
+      })
+
+      // Слушаем статус "прочитано" (Broadcast)
+      .on('broadcast', { event: 'read' }, (payload) => {
+        if (payload.payload.user_id !== currentUserId) {
+          console.log("Получено broadcast-обновление прочтения:", payload.payload.user_id, payload.payload.last_read_at);
+          setUsernames((prev) => prev.map(chat =>
+            chat.chat_id === selectedChatId
+              ? { ...chat, peerLastReadAt: payload.payload.last_read_at }
+              : chat
+          ));
+        }
       })
       .subscribe((status) => {
         console.log(`Realtime status для чата ${selectedChatId}:`, status);
@@ -593,6 +642,7 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
             content: rawMessage.content,
             created_at: new Date(rawMessage.created_at),
             sender_username: rawMessage.sender_username,
+            sender_name: rawMessage.sender_name,
             reply_to_id: rawMessage.reply_to_id,
           },
         ]);
@@ -668,7 +718,7 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
     user_id: currentChat?.user_id || 'Не выбран чат',
   }
   return (<>
-    <div className={`flex h-screen overflow-hidden relative transition-colors duration-300 ${isDark ? 'bg-[#0e1621]' : 'bg-white'}`}>
+    <div className={`flex h-[100dvh] overflow-hidden relative transition-colors duration-300 ${isDark ? 'bg-[#0e1621]' : 'bg-white'}`}>
       {/* Overlay для закрытия сайдбара на мобилках */}
       {isSidebarOpen && (
         <div

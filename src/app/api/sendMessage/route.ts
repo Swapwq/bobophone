@@ -32,13 +32,14 @@ export async function POST(req: Request) {
 
     const sender = await prisma.public_users.findUnique({
       where: { id: sender_id },
-      select: { username: true }
+      select: { username: true, name: true }
     });
 
     return NextResponse.json(
       { 
         ...message, 
-        sender_username: sender?.username || null 
+        sender_username: sender?.username || null,
+        sender_name: sender?.name || null
       }, 
       { status: 201 }
     );
