@@ -17,6 +17,7 @@ export async function GET(req: Request) {
         user_id: true,
         last_message_text: true,
         last_message_at: true,
+        last_read_at: true,
         chat: {
           select: {
             type: true,
@@ -53,6 +54,7 @@ export async function GET(req: Request) {
         user_id: isGroup ? null : m.user_id,
         last_message_text: m.last_message_text,
         last_message_at: m.last_message_at,
+        peerLastReadAt: isGroup ? null : (m.last_read_at || null),
         type: m.chat?.type || 'private',
         // Название чата
         name: isGroup 

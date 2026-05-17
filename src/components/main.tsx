@@ -80,6 +80,7 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
 
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const profileCacheRef = React.useRef<Record<string, { username: string; name: string }>>({});
+  const activeChannelRef = React.useRef<any>(null);
 
   let lastTypingTime = 0;
   const isDark = theme === 'dark';
@@ -150,7 +151,8 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
 
     if (now - lastTypingTime > 2000) {
       lastTypingTime = now;
-      supabase.channel(`chat-${selectedChatId}`).send({
+      const channelToSend = activeChannelRef.current || supabase.channel(`chat-${selectedChatId}`);
+      channelToSend.send({
         type: 'broadcast',
         event: 'typing',
         payload: {
@@ -216,7 +218,8 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
       markMessagesAsRead(currentUserId, selectedChatId);
       
       // Отправляем Broadcast другим участникам, что мы прочитали сообщения
-      supabase.channel(`chat-${selectedChatId}`).send({
+      const channelToSend = activeChannelRef.current || supabase.channel(`chat-${selectedChatId}`);
+      channelToSend.send({
         type: 'broadcast',
         event: 'read',
         payload: {
@@ -263,6 +266,7 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
 
 
     const channel = supabase.channel(`chat-${selectedChatId}`);
+    activeChannelRef.current = channel;
 
     channel
       .on(
@@ -419,6 +423,7 @@ export default function Messanger({ currentUserId }: { currentUserId: string }) 
       });
 
     return () => {
+      activeChannelRef.current = null;
       supabase.removeChannel(channel);
     };
   }, [selectedChatId, currentUserId]); // Убрал supabase из зависимостей, он внешний

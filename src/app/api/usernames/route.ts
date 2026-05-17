@@ -6,14 +6,15 @@ export async function GET(req: Request) {
     const userId = url.searchParams.get('userId');
     if (!userId) return NextResponse.json([], { status: 400 });
 
-    const username = await prisma.public_users.findUnique({
+    const profile = await prisma.public_users.findUnique({
         where: {
             id: userId
         },
         select: {
-            username: true
+            username: true,
+            name: true
         }
     });
 
-    return NextResponse.json(username);
+    return NextResponse.json(profile);
 }
